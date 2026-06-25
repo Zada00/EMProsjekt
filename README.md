@@ -18,7 +18,7 @@ BoligCopilot er en enkel fullstack webapplikasjon for boligkjøpere. Den hjelper
 
 1. Naviger til prosjektmappen:
    ```bash
-   cd c:\EMProsjekt
+   cd \EMProsjekt
    ```
 2. Installer avhengigheter:
    ```bash
