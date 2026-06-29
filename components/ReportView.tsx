@@ -4,16 +4,32 @@ import { useState } from "react";
 import type { Rapport } from "@/lib/schema";
 
 /**
- * Viser det strukturerte resultatet. Sorterer avvik etter alvorsgrad (TG3 først),
- * og gir hver linje en kilde-chip så megler kan slå opp i originalen.
- * "Kopier"-knappen limer et ferdig tekstutdrag rett inn i salgsoppgaven.
+ * Kjøper-vennlig visning: sammendrag på vanlig norsk, ting å være obs på (sortert
+ * etter alvorlighet), spørsmål til visning, og mulige fremtidige kostnader (grov skala).
+ * Hvert funn har en kilde-chip så kjøperen kan slå opp i originalen.
  */
+
+const ALVOR: Record<string, { label: string; badge: string; border: string }> = {
+  høy: { label: "Høy", badge: "tg3", border: "var(--tg3)" },
+  middels: { label: "Middels", badge: "tg2", border: "var(--tg2)" },
+  lav: { label: "Lav", badge: "tg1", border: "var(--tg1)" },
+};
+
+const NIVA: Record<string, { label: string; badge: string }> = {
+  stor: { label: "Stor", badge: "tg3" },
+  middels: { label: "Middels", badge: "tg2" },
+  liten: { label: "Liten", badge: "tg1" },
+  ukjent: { label: "Ukjent", badge: "" },
+};
+
+const rank: Record<string, number> = { høy: 3, middels: 2, lav: 1 };
+
 export function ReportView({ rapport }: { rapport: Rapport }) {
   const [copied, setCopied] = useState(false);
 
-  const avvik = [...rapport.avvik].sort((a, b) => b.tg - a.tg);
-  const tg3 = avvik.filter((a) => a.tg === 3).length;
-  const tg2 = avvik.filter((a) => a.tg === 2).length;
+  const risikoer = [...rapport.risikoer].sort(
+    (a, b) => (rank[b.alvorlighet] ?? 0) - (rank[a.alvorlighet] ?? 0)
+  );
 
   function copy() {
     navigator.clipboard.writeText(tilTekst(rapport)).then(() => {
@@ -25,14 +41,9 @@ export function ReportView({ rapport }: { rapport: Rapport }) {
   return (
     <div className="report">
       <div className="report-head">
-        <div>
-          <h2>Nøkkelinfo</h2>
-          <div className="status" style={{ marginTop: 6 }}>
-            {tg3} × TG3 · {tg2} × TG2 funnet
-          </div>
-        </div>
+        <h2>Boligen forklart</h2>
         <button className="btn secondary" onClick={copy}>
-          {copied ? "Kopiert ✓" : "Kopier til salgsoppgave"}
+          {copied ? "Kopiert ✓" : "Kopier oppsummering"}
         </button>
       </div>
 
@@ -45,47 +56,56 @@ export function ReportView({ rapport }: { rapport: Rapport }) {
           label="BRA"
           value={rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : null}
         />
-        <Fact
-          label="P-rom"
-          value={rapport.primaerrom_prom_m2 ? `${rapport.primaerrom_prom_m2} m²` : null}
-        />
-        <Fact label="Ferdigattest" value={ferdigattestTekst(rapport)} />
-        <Fact
-          label="Kom. avgifter/år"
-          value={
-            rapport.kommunale_avgifter_per_aar_nok
-              ? `${rapport.kommunale_avgifter_per_aar_nok.toLocaleString("nb-NO")} kr`
-              : null
-          }
-        />
       </div>
 
-      <div className="section-title">Avvik ({avvik.length})</div>
-      {avvik.length === 0 && <div className="notfound">Ingen avvik trukket ut.</div>}
-      {avvik.map((a, i) => (
-        <div key={i} className={`avvik${a.tg === 3 ? " tg3" : a.tg === 2 ? " tg2" : ""}`}>
-          <div className="top">
-            <span className={`tg-badge tg${a.tg}`}>TG{a.tg}</span>
-            <span className="del">{a.bygningsdel}</span>
-            <span className="kilde">{a.kilde}</span>
-          </div>
-          <div className="desc">{a.beskrivelse}</div>
-          {a.anbefalt_tiltak && <div className="tiltak">Tiltak: {a.anbefalt_tiltak}</div>}
-        </div>
-      ))}
-
-      {rapport.tinglyste_servitutter.length > 0 && (
-        <>
-          <div className="section-title">Tinglyste servitutter</div>
-          {rapport.tinglyste_servitutter.map((s, i) => (
-            <div key={i} className="avvik">
-              <div className="top">
-                <span className="del">{s.type}</span>
-                <span className="kilde">{s.kilde}</span>
-              </div>
-              <div className="desc">{s.beskrivelse}</div>
+      <div className="section-title">Ting å være obs på ({risikoer.length})</div>
+      {risikoer.length === 0 && (
+        <div className="notfound">Ingen tydelige risikoer trukket ut.</div>
+      )}
+      {risikoer.map((r, i) => {
+        const a = ALVOR[r.alvorlighet] ?? ALVOR.lav;
+        return (
+          <div key={i} className="avvik" style={{ borderLeft: `4px solid ${a.border}` }}>
+            <div className="top">
+              <span className={`tg-badge ${a.badge}`}>{a.label}</span>
+              <span className="del">{r.tittel}</span>
+              <span className="kilde">{r.kilde}</span>
             </div>
-          ))}
+            <div className="desc">{r.forklaring}</div>
+          </div>
+        );
+      })}
+
+      {rapport.sporsmal_til_visning.length > 0 && (
+        <>
+          <div className="section-title">Spørsmål å stille på visning</div>
+          <div className="qlist">
+            {rapport.sporsmal_til_visning.map((q, i) => (
+              <div key={i} className="qitem">{q}</div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {rapport.mulige_kostnader.length > 0 && (
+        <>
+          <div className="section-title">Mulige fremtidige kostnader</div>
+          {rapport.mulige_kostnader.map((k, i) => {
+            const n = NIVA[k.grovt_niva] ?? NIVA.ukjent;
+            return (
+              <div key={i} className="avvik">
+                <div className="top">
+                  <span className={`tg-badge ${n.badge}`}>{n.label}</span>
+                  <span className="del">{k.hva}</span>
+                  {k.kilde && <span className="kilde">{k.kilde}</span>}
+                </div>
+                <div className="desc">{k.vurdering}</div>
+              </div>
+            );
+          })}
+          <div className="notfound">
+            Grov skala, ikke priser. Innhent tilbud fra fagfolk for reelle tall.
+          </div>
         </>
       )}
 
@@ -111,29 +131,20 @@ function Fact({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function ferdigattestTekst(r: Rapport): string | null {
-  switch (r.ferdigattest.status) {
-    case "ferdigattest":
-      return "Ja";
-    case "midlertidig_brukstillatelse":
-      return "Midlertidig";
-    case "mangler":
-      return "Mangler";
-    default:
-      return null;
-  }
-}
-
 function tilTekst(r: Rapport): string {
-  const lines: string[] = [];
-  lines.push(r.sammendrag, "");
-  if (r.byggeaar) lines.push(`Byggeår: ${r.byggeaar}`);
-  if (r.bruksareal_bra_m2) lines.push(`BRA: ${r.bruksareal_bra_m2} m²`);
-  lines.push("", "Avvik:");
-  [...r.avvik]
-    .sort((a, b) => b.tg - a.tg)
-    .forEach((a) =>
-      lines.push(`- TG${a.tg} ${a.bygningsdel}: ${a.beskrivelse} (${a.kilde})`)
-    );
+  const lines: string[] = [r.sammendrag, ""];
+  if (r.risikoer.length) {
+    lines.push("Ting å være obs på:");
+    [...r.risikoer]
+      .sort((a, b) => (rank[b.alvorlighet] ?? 0) - (rank[a.alvorlighet] ?? 0))
+      .forEach((x) =>
+        lines.push(`- [${x.alvorlighet}] ${x.tittel}: ${x.forklaring} (${x.kilde})`)
+      );
+    lines.push("");
+  }
+  if (r.sporsmal_til_visning.length) {
+    lines.push("Spørsmål til visning:");
+    r.sporsmal_til_visning.forEach((q) => lines.push(`- ${q}`));
+  }
   return lines.join("\n");
 }

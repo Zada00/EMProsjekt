@@ -1,41 +1,32 @@
 import { z } from "zod";
 
 /**
- * Datakontrakten for hva vi trekker ut av en tilstandsrapport.
+ * Datakontrakten for BoligCopilot (B2C – for boligkjøpere).
  *
- * To ting lever her, og de MÅ holdes i sync:
- *  1. `rapportSchema`     – zod-validering som kjører på svaret fra Claude (runtime-sikkerhet).
- *  2. `rapportJsonSchema` – JSON Schema som sendes til Claude som "tool", slik at modellen
- *                            tvinges til å svare i akkurat dette formatet (structured output).
+ * Vi trekker fortsatt ut det samme fra dokumentet, men vrir det fra "felt til
+ * salgsoppgaven" til "forklart for en kjøper": hva betyr dette for MEG, hva bør
+ * jeg spørre om på visning, og hva kan koste penger senere.
  *
- * Prinsipp mot hallusinasjon: hvert sentralt funn bærer en `kilde` (sidetall/seksjon),
- * og felt som ikke finnes settes til null + legges i `ikke_funnet`. Vi gjetter aldri.
+ *  1. `rapportSchema`     – zod-validering som kjører på svaret fra Claude.
+ *  2. `rapportJsonSchema` – JSON Schema som sendes til Claude som "tool" (tvungen struktur).
  *
- * Eier: Prompt Engineer (Utvikler 4), i samarbeid med Tech Lead.
+ * Prinsipp mot hallusinasjon: hvert funn bærer `kilde` (sidetall/seksjon). Felt som
+ * ikke finnes settes til null/utelates og legges i `ikke_funnet`. Vi gjetter aldri –
+ * og vi finner ALDRI på presise kronebeløp (se prompt.ts).
  */
 
-export const avvikSchema = z.object({
-  tg: z.number().int().min(0).max(3), // Tilstandsgrad. Vi bryr oss mest om 2 og 3.
-  bygningsdel: z.string(), // f.eks. "Våtrom/bad", "Tak", "Drenering"
-  beskrivelse: z.string(),
-  anbefalt_tiltak: z.string().nullable(),
+export const risikoSchema = z.object({
+  tittel: z.string(), // kort, på vanlig norsk, f.eks. "Drenering kan svikte"
+  forklaring: z.string(), // hva det betyr for kjøper, uten fagsjargong
+  alvorlighet: z.enum(["høy", "middels", "lav"]),
+  tg: z.number().int().min(0).max(3).nullable(), // original tilstandsgrad hvis oppgitt
   kilde: z.string(), // f.eks. "s. 24" eller "Pkt 5.3 Bad"
 });
 
-export const servituttSchema = z.object({
-  type: z.string(), // f.eks. "Veirett", "Ledningsrett"
-  beskrivelse: z.string(),
-  kilde: z.string(),
-});
-
-export const ferdigattestSchema = z.object({
-  status: z.enum([
-    "ferdigattest",
-    "midlertidig_brukstillatelse",
-    "mangler",
-    "ukjent",
-  ]),
-  kommentar: z.string().nullable(),
+export const kostnadSchema = z.object({
+  hva: z.string(), // f.eks. "Nytt bad", "Drenering"
+  grovt_niva: z.enum(["liten", "middels", "stor", "ukjent"]), // grov skala, IKKE presise tall
+  vurdering: z.string(), // kort forklaring med forbehold
   kilde: z.string().nullable(),
 });
 
@@ -43,22 +34,17 @@ export const rapportSchema = z.object({
   boligtype: z.string().nullable(),
   byggeaar: z.number().int().nullable(),
   bruksareal_bra_m2: z.number().nullable(),
-  primaerrom_prom_m2: z.number().nullable(),
-  ferdigattest: ferdigattestSchema,
-  kommunale_avgifter_per_aar_nok: z.number().nullable(),
-  avvik: z.array(avvikSchema),
-  tinglyste_servitutter: z.array(servituttSchema),
-  sammendrag: z.string(), // 2-4 nøytrale setninger. Ingen salgsspråk.
-  ikke_funnet: z.array(z.string()), // felt modellen IKKE klarte å finne i dokumentet
+  sammendrag: z.string(), // 2-4 setninger på vanlig norsk, til en kjøper
+  risikoer: z.array(risikoSchema),
+  sporsmal_til_visning: z.array(z.string()),
+  mulige_kostnader: z.array(kostnadSchema),
+  ikke_funnet: z.array(z.string()),
 });
 
 export type Rapport = z.infer<typeof rapportSchema>;
-export type Avvik = z.infer<typeof avvikSchema>;
+export type Risiko = z.infer<typeof risikoSchema>;
 
-/**
- * JSON Schema-speilet av zod-skjemaet over. Sendes til Claude som verktøy-definisjon.
- * Holdes manuelt i sync med rapportSchema (lite nok til at det er greit i en PoC).
- */
+/** JSON Schema-speilet. Holdes manuelt i sync med rapportSchema over. */
 export const rapportJsonSchema = {
   type: "object" as const,
   properties: {
@@ -71,91 +57,85 @@ export const rapportJsonSchema = {
       type: ["number", "null"],
       description: "Bruksareal (BRA) i kvadratmeter.",
     },
-    primaerrom_prom_m2: {
-      type: ["number", "null"],
-      description: "Primærrom (P-rom) i kvadratmeter.",
+    sammendrag: {
+      type: "string",
+      description:
+        "2-4 setninger på vanlig norsk, henvendt til en boligkjøper uten fagbakgrunn. Nøytralt, ikke salgsspråk. Nevn de viktigste tingene å være obs på.",
     },
-    ferdigattest: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          enum: [
-            "ferdigattest",
-            "midlertidig_brukstillatelse",
-            "mangler",
-            "ukjent",
-          ],
-        },
-        kommentar: { type: ["string", "null"] },
-        kilde: {
-          type: ["string", "null"],
-          description: "Sidetall eller seksjon der dette står.",
-        },
-      },
-      required: ["status", "kommentar", "kilde"],
-    },
-    kommunale_avgifter_per_aar_nok: {
-      type: ["number", "null"],
-      description: "Kommunale avgifter per år i NOK, hvis oppgitt.",
-    },
-    avvik: {
+    risikoer: {
       type: "array",
       description:
-        "Alle registrerte avvik. Ta med TG2 og TG3 alltid. TG0/TG1 kan utelates hvis de ikke er relevante.",
+        "Ting kjøperen bør være obs på, forklart på vanlig norsk. Ta med alle TG2/TG3-forhold, men oversett dem til hva det betyr for kjøper.",
       items: {
         type: "object",
         properties: {
+          tittel: { type: "string", description: "Kort overskrift på vanlig norsk." },
+          forklaring: {
+            type: "string",
+            description: "Hva dette betyr for kjøperen. Unngå fagsjargong, eller forklar den.",
+          },
+          alvorlighet: {
+            type: "string",
+            enum: ["høy", "middels", "lav"],
+            description:
+              "Din vurdering av hvor alvorlig dette er for kjøper. TG3 er typisk 'høy', TG2 'middels'.",
+          },
           tg: {
-            type: "integer",
+            type: ["integer", "null"],
             minimum: 0,
             maximum: 3,
-            description: "Tilstandsgrad slik den står i rapporten.",
+            description: "Original tilstandsgrad fra rapporten hvis oppgitt, ellers null.",
           },
-          bygningsdel: { type: "string" },
-          beskrivelse: { type: "string" },
-          anbefalt_tiltak: { type: ["string", "null"] },
           kilde: {
             type: "string",
             description: "Sidetall eller punkt, f.eks. 's. 24' eller 'Pkt 5.3'.",
           },
         },
-        required: ["tg", "bygningsdel", "beskrivelse", "anbefalt_tiltak", "kilde"],
+        required: ["tittel", "forklaring", "alvorlighet", "tg", "kilde"],
       },
     },
-    tinglyste_servitutter: {
+    sporsmal_til_visning: {
       type: "array",
+      description:
+        "Konkrete spørsmål kjøperen bør stille megler eller selger på visning, basert på det som er uklart eller bekymringsverdig i dokumentet.",
+      items: { type: "string" },
+    },
+    mulige_kostnader: {
+      type: "array",
+      description:
+        "Mulige fremtidige kostnader kjøperen bør regne med. ALDRI oppgi presise kronebeløp – bruk kun grov skala og forklaring med forbehold.",
       items: {
         type: "object",
         properties: {
-          type: { type: "string" },
-          beskrivelse: { type: "string" },
-          kilde: { type: "string" },
+          hva: { type: "string" },
+          grovt_niva: {
+            type: "string",
+            enum: ["liten", "middels", "stor", "ukjent"],
+            description: "Grov skala på mulig kostnad. Bruk 'ukjent' hvis du ikke kan vurdere.",
+          },
+          vurdering: {
+            type: "string",
+            description: "Kort forklaring med tydelig forbehold. Ingen presise tall.",
+          },
+          kilde: { type: ["string", "null"] },
         },
-        required: ["type", "beskrivelse", "kilde"],
+        required: ["hva", "grovt_niva", "vurdering", "kilde"],
       },
-    },
-    sammendrag: {
-      type: "string",
-      description: "2-4 nøytrale setninger. Ikke bruk salgsspråk.",
     },
     ikke_funnet: {
       type: "array",
       items: { type: "string" },
-      description:
-        "Navn på felt du IKKE klarte å finne i dokumentet. Tomt array hvis alt ble funnet.",
+      description: "Navn på sentrale forhold du IKKE klarte å finne i dokumentet.",
     },
   },
   required: [
     "boligtype",
     "byggeaar",
     "bruksareal_bra_m2",
-    "primaerrom_prom_m2",
-    "ferdigattest",
-    "kommunale_avgifter_per_aar_nok",
-    "avvik",
-    "tinglyste_servitutter",
     "sammendrag",
+    "risikoer",
+    "sporsmal_til_visning",
+    "mulige_kostnader",
     "ikke_funnet",
   ],
 } as const;

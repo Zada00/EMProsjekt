@@ -23,11 +23,8 @@ export default function Home() {
     try {
       const res = await fetch("/api/analyze", { method: "POST", body });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Noe gikk galt.");
-      } else {
-        setRapport(data.rapport);
-      }
+      if (!res.ok) setError(data.error ?? "Noe gikk galt.");
+      else setRapport(data.rapport);
     } catch {
       setError("Klarte ikke å nå serveren.");
     } finally {
@@ -44,12 +41,12 @@ export default function Home() {
   return (
     <main className="wrap">
       <header className="masthead">
-        <div className="wordmark">Tilstandsrapport-copilot</div>
-        <h1>Fra 80 siders PDF til nøkkelinfo på sekunder</h1>
+        <div className="wordmark">BoligCopilot</div>
+        <h1>Forstå boligen før du byr</h1>
         <p>
-          Last opp en tilstandsrapport. Verktøyet trekker ut alle TG2- og TG3-avvik,
-          byggeår, areal, ferdigattest og servitutter — med kildehenvisning på hvert funn,
-          så du kan verifisere raskt.
+          Last opp salgsoppgaven eller tilstandsrapporten, så forklarer vi den på vanlig
+          norsk: hva du bør være obs på, hva du bør spørre om på visning, og hva som kan
+          koste penger senere — med kildehenvisning så du kan slå opp selv.
         </p>
       </header>
 
@@ -58,12 +55,12 @@ export default function Home() {
           <Dropzone file={file} onPick={setFile} disabled={loading} />
           {file && !loading && (
             <button className="btn" onClick={analyser}>
-              Analyser rapport
+              Forklar boligen
             </button>
           )}
           {loading && (
             <div className="status">
-              <span className="spinner" /> Leser dokumentet og henter ut avvik …
+              <span className="spinner" /> Leser dokumentet og forklarer …
             </div>
           )}
           {error && <div className="error">{error}</div>}
@@ -74,15 +71,15 @@ export default function Home() {
         <>
           <ReportView rapport={rapport} />
           <button className="btn secondary" style={{ marginTop: 28 }} onClick={nullstill}>
-            Analyser en ny rapport
+            Sjekk en ny bolig
           </button>
         </>
       )}
 
       <div className="disclaimer">
-        Dette er et KI-verktøy for effektivisering. Det endelige juridiske ansvaret for
-        innholdet i salgsoppgaven ligger hos ansvarlig megler. Opplastede dokumenter
-        lagres ikke — de behandles i minne og forkastes når analysen er ferdig.
+        BoligCopilot hjelper deg å forstå dokumentene — det er ikke profesjonell råd­givning.
+        Vurderinger og kostnadsanslag kan inneholde feil. Sjekk viktige forhold med takstmann,
+        megler eller annen fagperson før du legger inn bud. Opplastede dokumenter lagres ikke.
       </div>
     </main>
   );

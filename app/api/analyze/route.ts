@@ -4,18 +4,17 @@ import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // sekunder. Store rapporter kan ta tid.
+export const maxDuration = 120;
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB. Claudes PDF-grense er ~32 MB / ~100 sider.
 
 /**
  * POST /api/analyze
  * Body: multipart/form-data med feltet "file" (PDF).
- * Svar: validert JSON som matcher rapportSchema.
+ * Svar: validert JSON som matcher rapportSchema (kjøper-forklaring).
  *
- * GDPR: vi skriver ALDRI PDF-en til disk eller database her. Den lever bare i minne
- * for varigheten av forespørselen, og forsvinner når funksjonen returnerer. Dette er
- * "slett-etter-bruk"-regelen fra veikartet, håndhevet i koden.
+ * GDPR: vi skriver ALDRI PDF-en til disk eller database. Den lever bare i minne
+ * for varigheten av forespørselen og forsvinner når funksjonen returnerer.
  */
 export async function POST(request: Request) {
   let file: File | null = null;
@@ -52,13 +51,12 @@ export async function POST(request: Request) {
       model: MODEL,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
-      // Tving modellen til å svare via verktøyet -> garantert struktur.
       tool_choice: { type: "tool", name: "lever_rapport" },
       tools: [
         {
           name: "lever_rapport",
           description:
-            "Leverer strukturert nøkkelinfo trukket ut fra tilstandsrapporten.",
+            "Leverer en kjøper-vennlig forklaring av salgsoppgaven/tilstandsrapporten.",
           input_schema: rapportJsonSchema,
         },
       ],
@@ -72,14 +70,13 @@ export async function POST(request: Request) {
             },
             {
               type: "text",
-              text: "Les denne tilstandsrapporten og lever nøkkelinfoen via verktøyet. Husk kilde (sidetall/punkt) på alle funn, og ALLE TG2/TG3-avvik.",
+              text: "Les dette dokumentet og forklar det for meg som boligkjøper via verktøyet. Husk kilde på alt, oversett fagord til vanlig norsk, og ingen presise kronebeløp.",
             },
           ],
         },
       ],
     });
 
-    // Finn verktøykallet i svaret (ikke anta rekkefølge).
     const toolUse = message.content.find((b) => b.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") {
       return NextResponse.json(
@@ -88,25 +85,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Valider mot zod – fanger opp hvis modellen leverer noe utenfor kontrakten.
     const parsed = rapportSchema.safeParse(toolUse.input);
     if (!parsed.success) {
       return NextResponse.json(
-        {
-          error: "Resultatet besto ikke valideringen.",
-          detaljer: parsed.error.flatten(),
-        },
+        { error: "Resultatet besto ikke valideringen.", detaljer: parsed.error.flatten() },
         { status: 502 }
       );
     }
 
     return NextResponse.json({ rapport: parsed.data, modell: MODEL });
   } catch (err) {
-    console.error("[em-copilot] analyse feilet:", err);
+    console.error("[boligcopilot] analyse feilet:", err);
     return NextResponse.json(
       { error: "Analysen feilet. Sjekk API-nøkkel og serverlogg." },
       { status: 500 }
     );
   }
-  // base64 og file faller ut av scope her -> ingenting lagres.
 }

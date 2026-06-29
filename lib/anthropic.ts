@@ -15,14 +15,14 @@ import Anthropic from "@anthropic-ai/sdk";
  */
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  // Kastes ved oppstart i dev hvis nøkkel mangler – bedre enn en kryptisk 500 senere.
-  console.warn(
-    "[em-copilot] ANTHROPIC_API_KEY er ikke satt. Kopier .env.example til .env.local og fyll inn nøkkelen."
-  );
+    // Kastes ved oppstart i dev hvis nøkkel mangler – bedre enn en kryptisk 500 senere.
+    console.warn(
+        "[em-copilot] ANTHROPIC_API_KEY er ikke satt. Kopier .env.example til .env.local og fyll inn nøkkelen."
+    );
 }
 
 export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 export const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
