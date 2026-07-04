@@ -397,14 +397,19 @@ a {
 /* Duell-layout */
 .duel-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(var(--cols, 2), minmax(280px, 1fr));
     gap: 14px;
     align-items: start;
 }
 
+.duel-scroll {
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
 @media (max-width: 700px) {
     .duel-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(var(--cols, 2), minmax(260px, 85vw));
     }
 }
 
@@ -432,4 +437,65 @@ a {
 
 .duel-grid .dropzone {
     padding: 36px 16px;
+}
+
+
+/* Liten lenke-aktig knapp (fjern bolig i duell) */
+.lenkeknapp {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 8px;
+    text-decoration: underline;
+    padding: 0;
+}
+
+    .lenkeknapp:hover {
+        color: var(--tg3);
+    }
+
+/* ===== Print / Lagre som PDF =====
+   Skjuler alt interaktivt og lar bare selve rapporten gå til papir/PDF. */
+@media print {
+    .no-print, .mode-toggle, .dropzone, .filerow, .btn, .lenkeknapp {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    .wrap {
+        max-width: none;
+        padding: 0;
+    }
+
+    .masthead {
+        border-bottom: 1px solid #000;
+        margin-bottom: 20px;
+    }
+
+    .duel-scroll {
+        overflow: visible;
+    }
+
+    .duel-grid {
+        grid-template-columns: repeat(var(--cols, 2), 1fr);
+        gap: 10px;
+    }
+
+    .avvik, .fact, .summary, .qitem {
+        break-inside: avoid;
+    }
+
+    .kilde {
+        border-color: #999;
+    }
+
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
 }
