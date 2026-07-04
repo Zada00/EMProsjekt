@@ -3,40 +3,62 @@
 import { useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
 import { ReportView } from "@/components/ReportView";
+import { CompareView } from "@/components/CompareView";
 import type { Rapport } from "@/lib/schema";
 
+type Mode = "en" | "duell";
+
+async function analyserFil(file: File): Promise<Rapport> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch("/api/analyze", { method: "POST", body });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Noe gikk galt.");
+  return data.rapport as Rapport;
+}
+
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<Mode>("en");
+  const [fileA, setFileA] = useState<File | null>(null);
+  const [fileB, setFileB] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rapport, setRapport] = useState<Rapport | null>(null);
+  const [rapportA, setRapportA] = useState<Rapport | null>(null);
+  const [rapportB, setRapportB] = useState<Rapport | null>(null);
+
+  const klar = mode === "en" ? !!fileA : !!fileA && !!fileB;
 
   async function analyser() {
-    if (!file) return;
+    if (!klar) return;
     setLoading(true);
     setError(null);
-    setRapport(null);
-
-    const body = new FormData();
-    body.append("file", file);
-
+    setRapportA(null);
+    setRapportB(null);
     try {
-      const res = await fetch("/api/analyze", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) setError(data.error ?? "Noe gikk galt.");
-      else setRapport(data.rapport);
-    } catch {
-      setError("Klarte ikke å nå serveren.");
+      if (mode === "en") {
+        setRapportA(await analyserFil(fileA!));
+      } else {
+        // To analyser parallelt – to separate API-kall, dobbel kostnad.
+        const [ra, rb] = await Promise.all([analyserFil(fileA!), analyserFil(fileB!)]);
+        setRapportA(ra);
+        setRapportB(rb);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Noe gikk galt.");
     } finally {
       setLoading(false);
     }
   }
 
   function nullstill() {
-    setFile(null);
-    setRapport(null);
+    setFileA(null);
+    setFileB(null);
+    setRapportA(null);
+    setRapportB(null);
     setError(null);
   }
+
+  const ferdig = mode === "en" ? !!rapportA : !!rapportA && !!rapportB;
 
   return (
     <main className="wrap">
@@ -50,28 +72,78 @@ export default function Home() {
         </p>
       </header>
 
-      {!rapport && (
+      {!ferdig && (
         <>
-          <Dropzone file={file} onPick={setFile} disabled={loading} />
-          {file && !loading && (
+          <div className="mode-toggle" role="tablist" aria-label="Modus">
+            <button
+              role="tab"
+              aria-selected={mode === "en"}
+              className={mode === "en" ? "active" : ""}
+              onClick={() => { setMode("en"); nullstill(); }}
+            >
+              Én bolig
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === "duell"}
+              className={mode === "duell" ? "active" : ""}
+              onClick={() => { setMode("duell"); nullstill(); }}
+            >
+              Sammenlign to
+            </button>
+          </div>
+
+          {mode === "en" ? (
+            <Dropzone file={fileA} onPick={setFileA} disabled={loading} />
+          ) : (
+            <div className="duel-grid">
+              <div>
+                <div className="duel-label">Bolig A</div>
+                <Dropzone file={fileA} onPick={setFileA} disabled={loading} />
+              </div>
+              <div>
+                <div className="duel-label">Bolig B</div>
+                <Dropzone file={fileB} onPick={setFileB} disabled={loading} />
+              </div>
+            </div>
+          )}
+
+          {klar && !loading && (
             <button className="btn" onClick={analyser}>
-              Forklar boligen
+              {mode === "en" ? "Forklar boligen" : "Sammenlign boligene"}
             </button>
           )}
           {loading && (
             <div className="status">
-              <span className="spinner" /> Leser dokumentet og forklarer …
+              <span className="spinner" />
+              {mode === "en"
+                ? "Leser dokumentet og forklarer …"
+                : "Leser begge dokumentene … (dette tar gjerne litt lenger tid)"}
             </div>
           )}
           {error && <div className="error">{error}</div>}
         </>
       )}
 
-      {rapport && (
+      {ferdig && mode === "en" && rapportA && (
         <>
-          <ReportView rapport={rapport} />
+          <ReportView rapport={rapportA} />
           <button className="btn secondary" style={{ marginTop: 28 }} onClick={nullstill}>
             Sjekk en ny bolig
+          </button>
+        </>
+      )}
+
+      {ferdig && mode === "duell" && rapportA && rapportB && (
+        <>
+          <CompareView
+            a={rapportA}
+            b={rapportB}
+            navnA={fileA?.name ?? "Bolig A"}
+            navnB={fileB?.name ?? "Bolig B"}
+          />
+          <button className="btn secondary" style={{ marginTop: 28 }} onClick={nullstill}>
+            Ny sammenligning
           </button>
         </>
       )}
