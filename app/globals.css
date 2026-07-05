@@ -1,0 +1,545 @@
+:root {
+    --paper: #fbfbf9;
+    --surface: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #e6e6e0;
+    --accent: #243b53; /* slate navy – merkevare. TG-fargene under er reservert for alvorsgrad. */
+    /* Tilstandsgrad = alvorsgrad. Fargene betyr noe, de er ikke pynt. */
+    --tg3: #b42318;
+    --tg3-bg: #fef3f2;
+    --tg2: #b54708;
+    --tg2-bg: #fffaeb;
+    --tg1: #067647;
+    --tg1-bg: #ecfdf3;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--accent);
+}
+
+.wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+}
+
+/* Topptekst / wordmark – monospace for "presist instrument"-følelsen */
+.masthead {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+    margin-bottom: 36px;
+}
+
+.wordmark {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.masthead h1 {
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 12px 0 6px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.masthead p {
+    color: var(--muted);
+    margin: 0;
+    max-width: 56ch;
+}
+
+/* Dropzone */
+.dropzone {
+    border: 1.5px dashed var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 56px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+    .dropzone:hover, .dropzone.drag {
+        border-color: var(--accent);
+        background: #fcfdff;
+    }
+
+    .dropzone .big {
+        font-size: 17px;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .dropzone .sub {
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+    .dropzone input {
+        display: none;
+    }
+
+.filerow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+    .filerow code {
+        font-family: var(--mono);
+        color: var(--ink);
+    }
+
+.btn {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    cursor: pointer;
+    margin-top: 18px;
+}
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .btn.secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--line);
+    }
+
+/* Status */
+.status {
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.error {
+    margin-top: 20px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: var(--tg3-bg);
+    color: var(--tg3);
+    font-size: 14px;
+}
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: none;
+    }
+}
+
+/* Resultat */
+.report {
+    margin-top: 36px;
+}
+
+.report-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+    .report-head h2 {
+        margin: 0;
+        font-size: 20px;
+    }
+
+.summary {
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    line-height: 1.5;
+}
+
+.facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 24px 0;
+}
+
+.fact {
+    background: var(--surface);
+    padding: 14px 16px;
+}
+
+    .fact .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+    }
+
+    .fact .value {
+        font-family: var(--mono);
+        font-size: 16px;
+        margin-top: 4px;
+    }
+
+        .fact .value.empty {
+            color: var(--muted);
+            font-style: italic;
+            font-family: var(--sans);
+            font-size: 14px;
+        }
+
+.section-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 32px 0 12px;
+}
+
+.avvik {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background: var(--surface);
+}
+
+    .avvik.tg3 {
+        border-left: 4px solid var(--tg3);
+    }
+
+    .avvik.tg2 {
+        border-left: 4px solid var(--tg2);
+    }
+
+    .avvik .top {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+
+        .avvik .top .tg-badge {
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+.tg-badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+    .tg-badge.tg3 {
+        background: var(--tg3-bg);
+        color: var(--tg3);
+    }
+
+    .tg-badge.tg2 {
+        background: var(--tg2-bg);
+        color: var(--tg2);
+    }
+
+    .tg-badge.tg1 {
+        background: var(--tg1-bg);
+        color: var(--tg1);
+    }
+
+.avvik .del {
+    font-weight: 600;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.35;
+}
+
+.avvik .desc {
+    color: var(--ink);
+    line-height: 1.45;
+}
+
+.avvik .tiltak {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 6px;
+}
+
+.kilde {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
+.kildelinje {
+    margin-top: 8px;
+}
+
+.notfound {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 8px;
+}
+
+    .notfound code {
+        font-family: var(--mono);
+    }
+
+.disclaimer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* Spørsmål til visning */
+.qlist {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.qitem {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+    .qitem:last-child {
+        border-bottom: none;
+    }
+
+    .qitem::before {
+        content: "?";
+        font-family: var(--mono);
+        color: var(--accent);
+        font-weight: 700;
+        margin-right: 10px;
+    }
+
+/* Modusvelger (én bolig / sammenlign to) */
+.mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    background: var(--surface);
+}
+
+    .mode-toggle button {
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 600;
+        padding: 9px 18px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+    }
+
+        .mode-toggle button.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
+/* Duell-layout */
+.duel-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+/* Resultat-duellen bryter ut av tekstbredden og bruker (nesten) hele skjermen */
+.duel-scroll {
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(96vw, 1700px);
+}
+
+@media (max-width: 760px) {
+    .duel-scroll {
+        width: 100%;
+        left: 0;
+        transform: none;
+    }
+
+        .duel-scroll .duel-grid {
+            grid-template-columns: 1fr;
+        }
+}
+
+.duel-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.duel-col {
+    min-width: 0;
+}
+
+.duel-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.duel-grid .dropzone {
+    padding: 36px 16px;
+}
+
+
+/* Liten lenke-aktig knapp (fjern bolig i duell) */
+.lenkeknapp {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 8px;
+    text-decoration: underline;
+    padding: 0;
+}
+
+    .lenkeknapp:hover {
+        color: var(--tg3);
+    }
+
+/* ===== Print / Lagre som PDF =====
+   Skjuler alt interaktivt og lar bare selve rapporten gå til papir/PDF. */
+@media print {
+    .no-print, .mode-toggle, .dropzone, .filerow, .btn, .lenkeknapp {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    .wrap {
+        max-width: none;
+        padding: 0;
+    }
+
+    .masthead {
+        border-bottom: 1px solid #000;
+        margin-bottom: 20px;
+    }
+
+    .duel-scroll {
+        position: static;
+        left: auto;
+        transform: none;
+        width: 100%;
+    }
+
+    .duel-grid {
+        grid-template-columns: repeat(var(--cols, 2), 1fr);
+        gap: 10px;
+    }
+
+    .avvik, .fact, .summary, .qitem {
+        break-inside: avoid;
+    }
+
+    .kilde {
+        border-color: #999;
+    }
+
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
+}
+
+
+/* Trange duell-kolonner: to fakta i bredden, litt tettere kort */
+.duel-col .facts {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.duel-col .fact {
+    padding: 10px 12px;
+}
+
+    .duel-col .fact .value {
+        font-size: 15px;
+    }
+
+.duel-col .avvik {
+    padding: 12px;
+}
