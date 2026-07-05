@@ -6,7 +6,8 @@ import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB. Claudes PDF-grense er ~32 MB / ~100 sider.
+const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per fil.
+const MAX_TOTAL = 30 * 1024 * 1024; // ~30 MB samlet (API-grensen er ~32 MB per forespørsel).
 
 /**
  * POST /api/analyze
@@ -17,34 +18,52 @@ const MAX_BYTES = 25 * 1024 * 1024; // 25 MB. Claudes PDF-grense er ~32 MB / ~10
  * for varigheten av forespørselen og forsvinner når funksjonen returnerer.
  */
 export async function POST(request: Request) {
-    let file: File | null = null;
+    let files: File[] = [];
     try {
         const formData = await request.formData();
-        file = formData.get("file") as File | null;
+        files = formData.getAll("file").filter((f): f is File => f instanceof File);
     } catch {
         return NextResponse.json(
-            { error: "Klarte ikke å lese opplastingen. Send en PDF som multipart/form-data." },
+            { error: "Klarte ikke å lese opplastingen. Send PDF-er som multipart/form-data." },
             { status: 400 }
         );
     }
 
-    if (!file) {
-        return NextResponse.json({ error: "Ingen fil mottatt." }, { status: 400 });
+    if (files.length === 0) {
+        return NextResponse.json({ error: "Ingen filer mottatt." }, { status: 400 });
     }
-    if (file.type !== "application/pdf") {
-        return NextResponse.json(
-            { error: "Kun PDF støttes i denne versjonen." },
-            { status: 415 }
-        );
+    for (const f of files) {
+        if (f.type !== "application/pdf") {
+            return NextResponse.json(
+                { error: `"${f.name}" er ikke en PDF. Kun PDF støttes i denne versjonen.` },
+                { status: 415 }
+            );
+        }
+        if (f.size > MAX_BYTES) {
+            return NextResponse.json(
+                { error: `"${f.name}" er for stor (maks 25 MB per fil).` },
+                { status: 413 }
+            );
+        }
     }
-    if (file.size > MAX_BYTES) {
+    const totalt = files.reduce((sum, f) => sum + f.size, 0);
+    if (totalt > MAX_TOTAL) {
         return NextResponse.json(
-            { error: "Filen er for stor (maks 25 MB). Store/skannede rapporter krever OCR – se README." },
+            { error: "Filene er samlet for store (maks ~30 MB per analyse). Prøv med færre/mindre PDF-er." },
             { status: 413 }
         );
     }
 
-    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const dokumentBlokker = await Promise.all(
+        files.map(async (f) => ({
+            type: "document" as const,
+            source: {
+                type: "base64" as const,
+                media_type: "application/pdf" as const,
+                data: Buffer.from(await f.arrayBuffer()).toString("base64"),
+            },
+        }))
+    );
 
     try {
         const message = await anthropic.messages.create({
@@ -64,13 +83,13 @@ export async function POST(request: Request) {
                 {
                     role: "user",
                     content: [
-                        {
-                            type: "document",
-                            source: { type: "base64", media_type: "application/pdf", data: base64 },
-                        },
+                        ...dokumentBlokker,
                         {
                             type: "text",
-                            text: "Les dette dokumentet og forklar det for meg som boligkjøper via verktøyet. Husk kilde på alt, oversett fagord til vanlig norsk, og ingen presise kronebeløp.",
+                            text:
+                                files.length > 1
+                                    ? `Du har fått ${files.length} dokumenter (i rekkefølge: ${files.map((f, i) => `Dok ${i + 1}: ${f.name}`).join(", ")}). De skal gjelde samme bolig – les dem samlet og forklar for meg som boligkjøper via verktøyet. Husk dokumentnummer + side i kilde (f.eks. "Dok 2, s. 7"), oversett fagord, ingen presise kronebeløp.`
+                                    : "Les dette dokumentet og forklar det for meg som boligkjøper via verktøyet. Husk kilde på alt, oversett fagord til vanlig norsk, og ingen presise kronebeløp.",
                         },
                     ],
                 },

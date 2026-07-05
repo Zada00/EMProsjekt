@@ -52,10 +52,14 @@ export const kostnadSchema = z.object({
 });
 
 export const rapportSchema = z.object({
+    dokumenttype: z.preprocess(smaaBokstaver,
+        z.enum(["tilstandsrapport", "salgsoppgave", "kombinasjon", "annet"])
+    ).catch("annet"), // hva vurderingen bygger på – avgjør hvor "komplett" analysen kan være
     boligtype: z.string().nullable(),
     byggeaar: z.preprocess(heltallFraTekst, z.number().int().nullable()),
     bruksareal_bra_m2: z.preprocess(tallFraTekst, z.number().nullable()),
     sammendrag: z.string(), // 2-4 setninger på vanlig norsk, til en kjøper
+    dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
     sporsmal_til_visning: z.array(z.string()),
     mulige_kostnader: z.array(kostnadSchema),
@@ -69,6 +73,12 @@ export type Risiko = z.infer<typeof risikoSchema>;
 export const rapportJsonSchema = {
     type: "object" as const,
     properties: {
+        dokumenttype: {
+            type: "string",
+            enum: ["tilstandsrapport", "salgsoppgave", "kombinasjon", "annet"],
+            description:
+                "Hva slags dokument(er) analysen bygger på. 'kombinasjon' = både salgsoppgave og tilstandsrapport. Viktig: en salgsoppgave inneholder ofte en innebygget TG-oppsummering – da er den fortsatt 'salgsoppgave', men bruk TG-infoen.",
+        },
         boligtype: {
             type: ["string", "null"],
             description: "Type bolig, f.eks. 'Enebolig', 'Leilighet', 'Rekkehus'.",
@@ -82,6 +92,11 @@ export const rapportJsonSchema = {
             type: "string",
             description:
                 "2-4 setninger på vanlig norsk, henvendt til en boligkjøper uten fagbakgrunn. Nøytralt, ikke salgsspråk. Nevn de viktigste tingene å være obs på.",
+        },
+        dokument_advarsel: {
+            type: ["string", "null"],
+            description:
+                "Sett KUN hvis noe er galt med dokumentene: de ser ut til å gjelde forskjellige boliger, er uleselige, eller er ikke boligdokumenter. Ellers null.",
         },
         risikoer: {
             type: "array",
@@ -150,6 +165,8 @@ export const rapportJsonSchema = {
         },
     },
     required: [
+        "dokumenttype",
+        "dokument_advarsel",
         "boligtype",
         "byggeaar",
         "bruksareal_bra_m2",
