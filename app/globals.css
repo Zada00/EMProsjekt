@@ -412,7 +412,7 @@ a {
 /* Duell-layout */
 .duel-grid {
     display: grid;
-    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--cols, 2), minmax(250px, 1fr));
     gap: 14px;
     align-items: start;
 }
@@ -422,6 +422,8 @@ a {
     left: 50%;
     transform: translateX(-50%);
     width: min(96vw, 1700px);
+    overflow-x: auto;
+    padding-bottom: 6px;
 }
 
 @media (max-width: 760px) {
