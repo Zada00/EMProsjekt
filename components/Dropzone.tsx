@@ -3,28 +3,28 @@
 import { useRef, useState } from "react";
 
 /**
- * Dra-og-slipp eller klikk for å velge én PDF.
- * Frontend (Utvikler 2) eier denne. Holder seg bevisst enkel.
+ * Dra-og-slipp for én ELLER FLERE PDF-er (tilstandsrapport og/eller salgsoppgave
+ * for samme bolig). Viser valgte filer med mulighet for å fjerne enkeltvis.
  */
 export function Dropzone({
-    file,
-    onPick,
+    files,
+    onChange,
     disabled,
 }: {
-    file: File | null;
-    onPick: (file: File | null) => void;
+    files: File[];
+    onChange: (files: File[]) => void;
     disabled?: boolean;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [drag, setDrag] = useState(false);
 
-    function handleFiles(files: FileList | null) {
-        const f = files?.[0] ?? null;
-        if (f && f.type !== "application/pdf") {
-            onPick(null);
-            return;
-        }
-        onPick(f);
+    function leggTil(liste: FileList | null) {
+        if (!liste) return;
+        const pdfer = Array.from(liste).filter((f) => f.type === "application/pdf");
+        if (pdfer.length) onChange([...files, ...pdfer]);
+    }
+    function fjern(i: number) {
+        onChange(files.filter((_, idx) => idx !== i));
     }
 
     return (
@@ -40,7 +40,7 @@ export function Dropzone({
                 onDrop={(e) => {
                     e.preventDefault();
                     setDrag(false);
-                    if (!disabled) handleFiles(e.dataTransfer.files);
+                    if (!disabled) leggTil(e.dataTransfer.files);
                 }}
                 role="button"
                 tabIndex={0}
@@ -51,21 +51,32 @@ export function Dropzone({
                     }
                 }}
             >
-                <div className="big">Slipp en tilstandsrapport her</div>
-                <div className="sub">eller klikk for å velge en PDF</div>
+                <div className="big">
+                    {files.length === 0 ? "Slipp PDF-er her" : "Slipp flere PDF-er her"}
+                </div>
+                <div className="sub">
+                    tilstandsrapport og/eller salgsoppgave — eller klikk for å velge
+                </div>
                 <input
                     ref={inputRef}
                     type="file"
                     accept="application/pdf"
-                    onChange={(e) => handleFiles(e.target.files)}
+                    multiple
+                    onChange={(e) => {
+                        leggTil(e.target.files);
+                        e.target.value = ""; // så samme fil kan velges igjen etter fjerning
+                    }}
                 />
             </div>
 
-            {file && (
-                <div className="filerow">
-                    Valgt: <code>{file.name}</code> ({Math.round(file.size / 1024)} kB)
+            {files.map((f, i) => (
+                <div className="filerow" key={i}>
+                    <code>{f.name}</code> ({Math.round(f.size / 1024)} kB)
+                    <button className="lenkeknapp" onClick={() => fjern(i)} disabled={disabled}>
+                        fjern
+                    </button>
                 </div>
-            )}
+            ))}
         </div>
     );
 }
