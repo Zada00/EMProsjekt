@@ -12,6 +12,12 @@ import { aapneKilde, type DokRef } from "@/components/ReportView";
 
 const rank: Record<string, number> = { høy: 3, middels: 2, lav: 1 };
 
+const NIVAER = [
+    { key: "høy", label: "Høy risiko", badge: "tg3", border: "var(--tg3)" },
+    { key: "middels", label: "Middels", badge: "tg2", border: "var(--tg2)" },
+    { key: "lav", label: "Lav", badge: "tg1", border: "var(--tg1)" },
+] as const;
+
 const DOKTYPE_NAVN: Record<string, string> = {
     tilstandsrapport: "Tilstandsrapport",
     salgsoppgave: "Kun salgsoppgave",
@@ -151,26 +157,32 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
                 </div>
             </div>
 
-            {risikoer.map((r, i) => {
-                const border =
-                    r.alvorlighet === "høy" ? "var(--tg3)" : r.alvorlighet === "middels" ? "var(--tg2)" : "var(--tg1)";
-                const badge =
-                    r.alvorlighet === "høy" ? "tg3" : r.alvorlighet === "middels" ? "tg2" : "tg1";
+            {NIVAER.map((n) => {
+                const gruppe = risikoer.filter((r) => r.alvorlighet === n.key);
+                if (gruppe.length === 0) return null;
                 return (
-                    <div key={i} className="avvik" style={{ borderLeft: `4px solid ${border}` }}>
-                        <div className="top">
-                            <span className={`tg-badge ${badge}`}>
-                                {r.alvorlighet[0].toUpperCase() + r.alvorlighet.slice(1)}
-                            </span>
-                            <span className="del">{r.tittel}</span>
-                        </div>
-                        <div className="desc">{r.forklaring}</div>
-                        <div className="kildelinje">
-                            <button className="kilde kildeknapp" onClick={() => aapneKilde(r.kilde, dokumenter)} title="Åpne PDF-en på denne siden">
-                                {r.kilde} ↗
-                            </button>
-                        </div>
-                    </div>
+                    <details key={n.key} className="acc" open>
+                        <summary>
+                            <span className={`tg-badge ${n.badge}`}>{n.label}</span>
+                            <span className="acc-antall">{gruppe.length} funn</span>
+                        </summary>
+                        {gruppe.map((r, i) => (
+                            <div key={i} className="avvik" style={{ borderLeft: `4px solid ${n.border}` }}>
+                                <div className="top">
+                                    <span className={`tg-badge ${n.badge}`}>
+                                        {r.alvorlighet[0].toUpperCase() + r.alvorlighet.slice(1)}
+                                    </span>
+                                    <span className="del">{r.tittel}</span>
+                                </div>
+                                <div className="desc">{r.forklaring}</div>
+                                <div className="kildelinje">
+                                    <button className="kilde kildeknapp" onClick={() => aapneKilde(r.kilde, dokumenter)} title="Åpne PDF-en på denne siden">
+                                        {r.kilde} ↗
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </details>
                 );
             })}
         </div>
