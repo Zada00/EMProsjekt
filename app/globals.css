@@ -698,3 +698,8 @@ a {
         border: 1px solid #000;
     }
 }
+
+/* Risikorad med tre nivåer i duell-kolonnene */
+.duel-col .facts-3 {
+    grid-template-columns: repeat(3, 1fr);
+}

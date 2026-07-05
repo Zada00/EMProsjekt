@@ -121,6 +121,7 @@ export function CompareView({ rapporter }: { rapporter: NavngittRapport[] }) {
 function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: string; dokumenter: DokRef[] }) {
     const hoy = tell(rapport, "høy");
     const mid = tell(rapport, "middels");
+    const lav = tell(rapport, "lav");
     const risikoer = [...rapport.risikoer].sort(
         (x, y) => (rank[y.alvorlighet] ?? 0) - (rank[x.alvorlighet] ?? 0)
     );
@@ -134,7 +135,7 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
             )}
             <div className="summary" style={{ fontSize: 14 }}>{rapport.sammendrag}</div>
 
-            <div className="facts" style={{ margin: "14px 0" }}>
+            <div className="facts" style={{ margin: "14px 0 8px" }}>
                 <div className="fact">
                     <div className="label">Byggeår</div>
                     <div className={rapport.byggeaar ? "value" : "value empty"}>
@@ -147,6 +148,8 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
                         {rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : "ikke funnet"}
                     </div>
                 </div>
+            </div>
+            <div className="facts facts-3" style={{ margin: "0 0 14px" }}>
                 <div className="fact">
                     <div className="label">Høy risiko</div>
                     <div className="value" style={{ color: hoy > 0 ? "var(--tg3)" : undefined }}>{hoy}</div>
@@ -154,6 +157,10 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
                 <div className="fact">
                     <div className="label">Middels</div>
                     <div className="value" style={{ color: mid > 0 ? "var(--tg2)" : undefined }}>{mid}</div>
+                </div>
+                <div className="fact">
+                    <div className="label">Lav</div>
+                    <div className="value" style={{ color: lav > 0 ? "var(--tg1)" : undefined }}>{lav}</div>
                 </div>
             </div>
 
