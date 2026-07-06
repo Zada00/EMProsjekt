@@ -121,26 +121,26 @@ export default function Home() {
                 </p>
             </header>
 
-            {!ferdig && (
-                <>
-                    <div className="mode-toggle no-print" role="tablist" aria-label="Modus">
-                        <button
-                            role="tab"
-                            aria-selected={mode === "en"}
-                            className={mode === "en" ? "active" : ""}
-                            onClick={() => { setMode("en"); nullstill(); }}
-                        >
-                            Én bolig
-                        </button>
-                        <button
-                            role="tab"
-                            aria-selected={mode === "duell"}
-                            className={mode === "duell" ? "active" : ""}
-                            onClick={() => { setMode("duell"); nullstill(); }}
-                        >
-                            Sammenlign flere
-                        </button>
-                    </div>
+      {!ferdig && (
+        <>
+          <div className="mode-toggle no-print" role="tablist" aria-label="Modus">
+            <button
+              role="tab"
+              aria-selected={mode === "en"}
+              className={mode === "en" ? "active" : ""}
+              onClick={() => { setMode("en"); nullstill(); }}
+            >
+              Én bolig
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === "duell"}
+              className={mode === "duell" ? "active" : ""}
+              onClick={() => { setMode("duell"); nullstill(); }}
+            >
+              Sammenlign flere
+            </button>
+          </div>
 
                     {mode === "en" ? (
                         <Dropzone files={enFiler} onChange={setEnFiler} disabled={loading} />
@@ -204,25 +204,25 @@ export default function Home() {
                 </>
             )}
 
-            {duell && (
-                <>
-                    <CompareView rapporter={duell} />
-                    <div className="no-print" style={{ marginTop: 28, display: "flex", gap: 10 }}>
-                        <button className="btn" onClick={() => window.print()}>
-                            Lagre som PDF / skriv ut
-                        </button>
-                        <button className="btn secondary" onClick={nullstill}>
-                            Ny sammenligning
-                        </button>
-                    </div>
-                </>
-            )}
+      {duell && (
+        <>
+          <CompareView rapporter={duell} />
+          <div className="no-print" style={{ marginTop: 28, display: "flex", gap: 10 }}>
+            <button className="btn" onClick={() => window.print()}>
+              Lagre som PDF / skriv ut
+            </button>
+            <button className="btn secondary" onClick={nullstill}>
+              Ny sammenligning
+            </button>
+          </div>
+        </>
+      )}
 
-            <div className="disclaimer">
-                BoligCopilot hjelper deg å forstå dokumentene — det er ikke profesjonell råd­givning.
-                Vurderinger og kostnadsanslag kan inneholde feil. Sjekk viktige forhold med takstmann,
-                megler eller annen fagperson før du legger inn bud. Opplastede dokumenter lagres ikke.
-            </div>
-        </main>
-    );
+      <div className="disclaimer">
+        BoligCopilot hjelper deg å forstå dokumentene — det er ikke profesjonell råd­givning.
+        Vurderinger og kostnadsanslag kan inneholde feil. Sjekk viktige forhold med takstmann,
+        megler eller annen fagperson før du legger inn bud. Opplastede dokumenter lagres ikke.
+      </div>
+    </main>
+  );
 }

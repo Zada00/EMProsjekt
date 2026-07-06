@@ -424,6 +424,24 @@ a {
     width: min(96vw, 1700px);
     overflow-x: auto;
     padding-bottom: 6px;
+    scrollbar-width: none;
+}
+
+    .duel-scroll::-webkit-scrollbar {
+        display: none;
+    }
+/* Sticky proxy-scrollbar: ligger fast nederst i synsfeltet mens duellen er synlig */
+.hscroll-proxy {
+    position: sticky;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(96vw, 1700px);
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 16px;
+    z-index: 20;
+    background: linear-gradient(to top, var(--paper) 60%, transparent);
 }
 
 @media (max-width: 760px) {
@@ -544,4 +562,144 @@ a {
 
 .duel-col .avvik {
     padding: 12px;
+}
+
+/* Klikkbar kilde */
+.kildeknapp {
+    cursor: pointer;
+}
+
+    .kildeknapp:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+/* Accordion per alvorlighetsnivå */
+.acc {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    margin-bottom: 10px;
+    padding: 0 12px;
+}
+
+    .acc summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 4px;
+        cursor: pointer;
+        list-style: none;
+        font-weight: 600;
+    }
+
+        .acc summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .acc summary::after {
+            content: "▾";
+            margin-left: auto;
+            color: var(--muted);
+            transition: transform 0.15s;
+        }
+
+    .acc:not([open]) summary::after {
+        transform: rotate(-90deg);
+    }
+
+.acc-antall {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 14px;
+}
+
+.acc .avvik {
+    margin: 0 0 10px;
+}
+
+/* Oversikt: fakta + donut side om side */
+.oversikt {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    margin: 24px 0;
+    flex-wrap: wrap;
+}
+
+    .oversikt .facts {
+        margin: 0;
+    }
+
+.donutboks {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 10px 16px;
+}
+
+.donutlegende {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+    .donutlegende i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 6px;
+    }
+
+@media print {
+    .acc {
+        break-inside: avoid;
+    }
+
+        .acc summary::after {
+            display: none;
+        }
+}
+
+
+/* Dokumentgrunnlag */
+.grunnlag-chip {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 10px;
+    white-space: nowrap;
+}
+
+.grunnlagsvarsel {
+    background: #fffaeb;
+    border: 1px solid var(--tg2);
+    color: #7a4d08;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 18px;
+}
+
+@media print {
+    .grunnlagsvarsel {
+        border: 1px solid #000;
+    }
+}
+
+/* Risikorad med tre nivåer i duell-kolonnene */
+.duel-col .facts-3 {
+    grid-template-columns: repeat(3, 1fr);
 }
