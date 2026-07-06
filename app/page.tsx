@@ -1,56 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
-import { ReportView } from "@/components/ReportView";
+import { ReportView, type DokRef } from "@/components/ReportView";
 import { CompareView, type NavngittRapport } from "@/components/CompareView";
 import type { Rapport } from "@/lib/schema";
 
 type Mode = "en" | "duell";
 
-async function analyserFil(file: File): Promise<Rapport> {
+async function analyserFiler(filer: File[]): Promise<Rapport> {
     const body = new FormData();
-    body.append("file", file);
+    filer.forEach((f) => body.append("file", f));
     const res = await fetch("/api/analyze", { method: "POST", body });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Noe gikk galt.");
     return data.rapport as Rapport;
 }
 
+function tilDokRefs(filer: File[]): DokRef[] {
+    return filer.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+}
+
 export default function Home() {
     const [mode, setMode] = useState<Mode>("en");
-    // Duell: dynamisk liste av filplasser (start med to). Bruker kan legge til flere.
-    const [files, setFiles] = useState<(File | null)[]>([null, null]);
+    // Hver "plass" er én bolig og kan inneholde FLERE PDF-er (tilstandsrapport + salgsoppgave).
+    const [enFiler, setEnFiler] = useState<File[]>([]);
+    const [slots, setSlots] = useState<File[][]>([[], []]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [enkelt, setEnkelt] = useState<Rapport | null>(null);
+    const [enkelt, setEnkelt] = useState<{ rapport: Rapport; dokumenter: DokRef[] } | null>(null);
     const [duell, setDuell] = useState<NavngittRapport[] | null>(null);
 
-    const valgte = files.filter((f): f is File => !!f);
-    const klar = mode === "en" ? !!files[0] : valgte.length >= 2;
+    const fylteSlots = slots.filter((s) => s.length > 0);
+    const klar = mode === "en" ? enFiler.length > 0 : fylteSlots.length >= 2;
 
-    function settFil(i: number, f: File | null) {
-        setFiles((prev) => prev.map((x, idx) => (idx === i ? f : x)));
+    function settSlot(i: number, filer: File[]) {
+        setSlots((prev) => prev.map((x, idx) => (idx === i ? filer : x)));
     }
-    function leggTilPlass() {
-        setFiles((prev) => [...prev, null]);
+    function leggTilSlot() {
+        setSlots((prev) => [...prev, []]);
     }
-    function fjernPlass(i: number) {
-        setFiles((prev) => (prev.length <= 2 ? prev : prev.filter((_, idx) => idx !== i)));
+    function fjernSlot(i: number) {
+        setSlots((prev) => (prev.length <= 2 ? prev : prev.filter((_, idx) => idx !== i)));
+    }
+
+    function ryddOpp() {
+        // Frigjør blob-URL-er fra forrige runde
+        enkelt?.dokumenter.forEach((d) => URL.revokeObjectURL(d.url));
+        duell?.forEach((b) => b.dokumenter.forEach((d) => URL.revokeObjectURL(d.url)));
     }
 
     async function analyser() {
         if (!klar) return;
         setLoading(true);
         setError(null);
+        ryddOpp();
         setEnkelt(null);
         setDuell(null);
         try {
             if (mode === "en") {
-                setEnkelt(await analyserFil(files[0]!));
+                const rapport = await analyserFiler(enFiler);
+                setEnkelt({ rapport, dokumenter: tilDokRefs(enFiler) });
             } else {
-                const resultater = await Promise.all(valgte.map((f) => analyserFil(f)));
-                setDuell(resultater.map((rapport, i) => ({ navn: valgte[i].name, rapport })));
+                const resultater = await Promise.all(fylteSlots.map((f) => analyserFiler(f)));
+                setDuell(
+                    resultater.map((rapport, i) => ({
+                        navn: fylteSlots[i][0].name.replace(/\.pdf$/i, ""),
+                        rapport,
+                        dokumenter: tilDokRefs(fylteSlots[i]),
+                    }))
+                );
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Noe gikk galt.");
@@ -60,11 +79,33 @@ export default function Home() {
     }
 
     function nullstill() {
-        setFiles([null, null]);
+        ryddOpp();
+        setEnFiler([]);
+        setSlots([[], []]);
         setEnkelt(null);
         setDuell(null);
         setError(null);
     }
+
+    // PDF-eksport: lukkede accordioner ville gitt en nesten tom utskrift.
+    // Åpner alle før utskrift og gjenoppretter tilstanden etterpå.
+    useEffect(() => {
+        let varLukket: HTMLDetailsElement[] = [];
+        const foer = () => {
+            varLukket = Array.from(document.querySelectorAll<HTMLDetailsElement>("details.acc:not([open])"));
+            varLukket.forEach((d) => (d.open = true));
+        };
+        const etter = () => {
+            varLukket.forEach((d) => (d.open = false));
+            varLukket = [];
+        };
+        window.addEventListener("beforeprint", foer);
+        window.addEventListener("afterprint", etter);
+        return () => {
+            window.removeEventListener("beforeprint", foer);
+            window.removeEventListener("afterprint", etter);
+        };
+    }, []);
 
     const ferdig = !!enkelt || !!duell;
 
@@ -74,9 +115,9 @@ export default function Home() {
                 <div className="wordmark">BoligCopilot</div>
                 <h1>Forstå boligen før du byr</h1>
                 <p>
-                    Last opp salgsoppgaven eller tilstandsrapporten, så forklarer vi den på vanlig
+                    Last opp salgsoppgaven og/eller tilstandsrapporten, så forklarer vi dem på vanlig
                     norsk: hva du bør være obs på, hva du bør spørre om på visning, og hva som kan
-                    koste penger senere — med kildehenvisning så du kan slå opp selv.
+                    koste penger senere — med klikkbare kildehenvisninger rett inn i PDF-en.
                 </p>
             </header>
 
@@ -102,29 +143,30 @@ export default function Home() {
                     </div>
 
                     {mode === "en" ? (
-                        <Dropzone file={files[0]} onPick={(f) => settFil(0, f)} disabled={loading} />
+                        <Dropzone files={enFiler} onChange={setEnFiler} disabled={loading} />
                     ) : (
                         <>
-                            <div className="duel-grid" style={{ ["--cols" as string]: files.length }}>
-                                {files.map((f, i) => (
+                            <div className="duel-grid" style={{ ["--cols" as string]: slots.length }}>
+                                {slots.map((filer, i) => (
                                     <div key={i}>
                                         <div className="duel-label">
                                             Bolig {String.fromCharCode(65 + i)}
-                                            {files.length > 2 && (
-                                                <button className="lenkeknapp" onClick={() => fjernPlass(i)} disabled={loading}>
+                                            {slots.length > 2 && (
+                                                <button className="lenkeknapp" onClick={() => fjernSlot(i)} disabled={loading}>
                                                     fjern
                                                 </button>
                                             )}
                                         </div>
-                                        <Dropzone file={f} onPick={(x) => settFil(i, x)} disabled={loading} />
+                                        <Dropzone files={filer} onChange={(f) => settSlot(i, f)} disabled={loading} />
                                     </div>
                                 ))}
                             </div>
-                            <button className="btn secondary" style={{ marginTop: 14 }} onClick={leggTilPlass} disabled={loading}>
+                            <button className="btn secondary" style={{ marginTop: 14 }} onClick={leggTilSlot} disabled={loading}>
                                 + Legg til en bolig til
                             </button>
                             <div className="notfound" style={{ marginTop: 8 }}>
-                                Hver bolig analyseres for seg — flere boliger tar litt lenger tid og koster mer.
+                                Hver bolig kan ha flere PDF-er (f.eks. salgsoppgave + tilstandsrapport) — de
+                                analyseres samlet. Flere boliger tar litt lenger tid og koster mer.
                             </div>
                         </>
                     )}
@@ -132,7 +174,7 @@ export default function Home() {
                     {klar && !loading && (
                         <div>
                             <button className="btn" onClick={analyser}>
-                                {mode === "en" ? "Forklar boligen" : `Sammenlign ${valgte.length} boliger`}
+                                {mode === "en" ? "Forklar boligen" : `Sammenlign ${fylteSlots.length} boliger`}
                             </button>
                         </div>
                     )}
@@ -140,8 +182,8 @@ export default function Home() {
                         <div className="status">
                             <span className="spinner" />
                             {mode === "en"
-                                ? "Leser dokumentet og forklarer …"
-                                : `Leser ${valgte.length} dokumenter … (dette tar gjerne litt lenger tid)`}
+                                ? "Leser dokumentene og forklarer …"
+                                : `Leser ${fylteSlots.length} boliger … (dette tar gjerne litt lenger tid)`}
                         </div>
                     )}
                     {error && <div className="error">{error}</div>}
@@ -150,7 +192,7 @@ export default function Home() {
 
             {enkelt && (
                 <>
-                    <ReportView rapport={enkelt} />
+                    <ReportView rapport={enkelt.rapport} dokumenter={enkelt.dokumenter} />
                     <div className="no-print" style={{ marginTop: 28, display: "flex", gap: 10 }}>
                         <button className="btn" onClick={() => window.print()}>
                             Lagre som PDF / skriv ut

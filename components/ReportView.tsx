@@ -1,65 +1,159 @@
 "use client";
 
-import type { Rapport } from "@/lib/schema";
+import type { Rapport, Risiko } from "@/lib/schema";
+
+/** Referanse til en opplastet PDF (for klikkbare kilder). */
+export type DokRef = { name: string; url: string };
 
 /**
- * Kjøper-vennlig visning: sammendrag på vanlig norsk, ting å være obs på (sortert
- * etter alvorlighet), spørsmål til visning, og mulige fremtidige kostnader (grov skala).
- * Hvert funn har en kilde-chip så kjøperen kan slå opp i originalen.
+ * Åpner PDF-en kilden peker på, på riktig side, i ny fane.
+ * Kildeformat: "s. 24", "Pkt 5.3", eller "Dok 2, s. 7" ved flere dokumenter.
  */
+export function aapneKilde(kilde: string, dokumenter: DokRef[]) {
+    if (!dokumenter.length) return;
+    const dok = kilde.match(/dok\w*\s*(\d+)/i);
+    const side = kilde.match(/s\.?\s*(\d+)/i);
+    const valgt = dokumenter[dok ? Number(dok[1]) - 1 : 0] ?? dokumenter[0];
+    window.open(side ? `${valgt.url}#page=${side[1]}` : valgt.url, "_blank");
+}
 
-const ALVOR: Record<string, { label: string; badge: string; border: string }> = {
-    høy: { label: "Høy", badge: "tg3", border: "var(--tg3)" },
-    middels: { label: "Middels", badge: "tg2", border: "var(--tg2)" },
-    lav: { label: "Lav", badge: "tg1", border: "var(--tg1)" },
-};
+const NIVAER = [
+    { key: "høy", label: "Høy risiko", badge: "tg3", border: "var(--tg3)" },
+    { key: "middels", label: "Middels", badge: "tg2", border: "var(--tg2)" },
+    { key: "lav", label: "Lav", badge: "tg1", border: "var(--tg1)" },
+] as const;
 
-const NIVA: Record<string, { label: string; badge: string }> = {
+const KOSTNAD_NIVA: Record<string, { label: string; badge: string }> = {
     stor: { label: "Stor", badge: "tg3" },
     middels: { label: "Middels", badge: "tg2" },
     liten: { label: "Liten", badge: "tg1" },
     ukjent: { label: "Ukjent", badge: "" },
 };
 
-const rank: Record<string, number> = { høy: 3, middels: 2, lav: 1 };
-
-export function ReportView({ rapport }: { rapport: Rapport }) {
-    const risikoer = [...rapport.risikoer].sort(
-        (a, b) => (rank[b.alvorlighet] ?? 0) - (rank[a.alvorlighet] ?? 0)
+/** Enkel SVG-donut over risikofordelingen. Ingen biblioteker. */
+function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: number }) {
+    const total = hoy + mid + lav;
+    if (total === 0) return null;
+    const R = 34;
+    const C = 2 * Math.PI * R;
+    const deler = [
+        { n: hoy, farge: "var(--tg3)" },
+        { n: mid, farge: "var(--tg2)" },
+        { n: lav, farge: "var(--tg1)" },
+    ].filter((d) => d.n > 0);
+    let offset = 0;
+    return (
+        <div className="donutboks" aria-label={`Risikofordeling: ${hoy} høy, ${mid} middels, ${lav} lav`}>
+            <svg width="92" height="92" viewBox="0 0 92 92" role="img">
+                <circle cx="46" cy="46" r={R} fill="none" stroke="var(--line)" strokeWidth="12" />
+                {deler.map((d, i) => {
+                    const lengde = (d.n / total) * C;
+                    const el = (
+                        <circle
+                            key={i}
+                            cx="46" cy="46" r={R}
+                            fill="none"
+                            stroke={d.farge}
+                            strokeWidth="12"
+                            strokeDasharray={`${lengde} ${C - lengde}`}
+                            strokeDashoffset={-offset}
+                            transform="rotate(-90 46 46)"
+                        />
+                    );
+                    offset += lengde;
+                    return el;
+                })}
+                <text x="46" y="51" textAnchor="middle" fontSize="18" fontWeight="600" fill="var(--ink)">
+                    {total}
+                </text>
+            </svg>
+            <div className="donutlegende">
+                {hoy > 0 && <span><i style={{ background: "var(--tg3)" }} /> {hoy} høy</span>}
+                {mid > 0 && <span><i style={{ background: "var(--tg2)" }} /> {mid} middels</span>}
+                {lav > 0 && <span><i style={{ background: "var(--tg1)" }} /> {lav} lav</span>}
+            </div>
+        </div>
     );
+}
+
+function RisikoKort({ r, badge, border, dokumenter }: { r: Risiko; badge: string; border: string; dokumenter: DokRef[] }) {
+    return (
+        <div className="avvik" style={{ borderLeft: `4px solid ${border}` }}>
+            <div className="top">
+                <span className={`tg-badge ${badge}`}>{r.alvorlighet[0].toUpperCase() + r.alvorlighet.slice(1)}</span>
+                <span className="del">{r.tittel}</span>
+            </div>
+            <div className="desc">{r.forklaring}</div>
+            <div className="kildelinje">
+                <button
+                    className="kilde kildeknapp"
+                    onClick={() => aapneKilde(r.kilde, dokumenter)}
+                    title="Åpne PDF-en på denne siden"
+                >
+                    {r.kilde} ↗
+                </button>
+            </div>
+        </div>
+    );
+}
+
+const DOKTYPE_NAVN: Record<string, string> = {
+    tilstandsrapport: "Tilstandsrapport",
+    salgsoppgave: "Kun salgsoppgave",
+    kombinasjon: "Salgsoppgave + tilstandsrapport",
+    annet: "Annet dokument",
+};
+
+export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokumenter: DokRef[] }) {
+    const teller = (niva: string) => rapport.risikoer.filter((x) => x.alvorlighet === niva).length;
+    const hoy = teller("høy");
+    const mid = teller("middels");
+    const lav = teller("lav");
 
     return (
         <div className="report">
             <div className="report-head">
                 <h2>Boligen forklart</h2>
+                <span className="grunnlag-chip">{DOKTYPE_NAVN[rapport.dokumenttype] ?? "Ukjent grunnlag"}</span>
             </div>
+
+            {rapport.dokument_advarsel && (
+                <div className="error" style={{ marginBottom: 16 }}>
+                    ⚠ {rapport.dokument_advarsel}
+                </div>
+            )}
 
             <div className="summary">{rapport.sammendrag}</div>
 
-            <div className="facts">
-                <Fact label="Boligtype" value={rapport.boligtype} />
-                <Fact label="Byggeår" value={rapport.byggeaar?.toString()} />
-                <Fact
-                    label="BRA"
-                    value={rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : null}
-                />
+            <div className="oversikt">
+                <div className="facts" style={{ flex: 1 }}>
+                    <Fact label="Boligtype" value={rapport.boligtype} />
+                    <Fact label="Byggeår" value={rapport.byggeaar?.toString()} />
+                    <Fact
+                        label="BRA"
+                        value={rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : null}
+                    />
+                </div>
+                <RisikoDonut hoy={hoy} mid={mid} lav={lav} />
             </div>
 
-            <div className="section-title">Ting å være obs på ({risikoer.length})</div>
-            {risikoer.length === 0 && (
+            <div className="section-title">Ting å være obs på ({rapport.risikoer.length})</div>
+            {rapport.risikoer.length === 0 && (
                 <div className="notfound">Ingen tydelige risikoer trukket ut.</div>
             )}
-            {risikoer.map((r, i) => {
-                const a = ALVOR[r.alvorlighet] ?? ALVOR.lav;
+            {NIVAER.map((n) => {
+                const gruppe = rapport.risikoer.filter((r) => r.alvorlighet === n.key);
+                if (gruppe.length === 0) return null;
                 return (
-                    <div key={i} className="avvik" style={{ borderLeft: `4px solid ${a.border}` }}>
-                        <div className="top">
-                            <span className={`tg-badge ${a.badge}`}>{a.label}</span>
-                            <span className="del">{r.tittel}</span>
-                        </div>
-                        <div className="desc">{r.forklaring}</div>
-                        <div className="kildelinje"><span className="kilde">{r.kilde}</span></div>
-                    </div>
+                    <details key={n.key} className="acc">
+                        <summary>
+                            <span className={`tg-badge ${n.badge}`}>{n.label}</span>
+                            <span className="acc-antall">{gruppe.length} funn</span>
+                        </summary>
+                        {gruppe.map((r, i) => (
+                            <RisikoKort key={i} r={r} badge={n.badge} border={n.border} dokumenter={dokumenter} />
+                        ))}
+                    </details>
                 );
             })}
 
@@ -78,7 +172,7 @@ export function ReportView({ rapport }: { rapport: Rapport }) {
                 <>
                     <div className="section-title">Mulige fremtidige kostnader</div>
                     {rapport.mulige_kostnader.map((k, i) => {
-                        const n = NIVA[k.grovt_niva] ?? NIVA.ukjent;
+                        const n = KOSTNAD_NIVA[k.grovt_niva] ?? KOSTNAD_NIVA.ukjent;
                         return (
                             <div key={i} className="avvik">
                                 <div className="top">
@@ -87,7 +181,11 @@ export function ReportView({ rapport }: { rapport: Rapport }) {
                                 </div>
                                 <div className="desc">{k.vurdering}</div>
                                 {k.kilde && (
-                                    <div className="kildelinje"><span className="kilde">{k.kilde}</span></div>
+                                    <div className="kildelinje">
+                                        <button className="kilde kildeknapp" onClick={() => aapneKilde(k.kilde!, dokumenter)}>
+                                            {k.kilde} ↗
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         );
