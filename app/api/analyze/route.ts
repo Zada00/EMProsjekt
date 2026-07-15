@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
+import { loggKostnad } from "@/lib/kostnad";
+import { sjekkTilgang } from "@/lib/tilgang";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
 
@@ -18,6 +20,12 @@ const MAX_TOTAL = 30 * 1024 * 1024; // ~30 MB samlet (API-grensen er ~32 MB per 
  * for varigheten av forespørselen og forsvinner når funksjonen returnerer.
  */
 export async function POST(request: Request) {
+    // Tilgangskontroll (pilot): kode i header, rate-limit og dagskvote per kode.
+    const tilgang = sjekkTilgang(request.headers.get("x-tilgangskode"));
+    if (!tilgang.ok) {
+        return NextResponse.json({ error: tilgang.feil }, { status: tilgang.status });
+    }
+
     let files: File[] = [];
     try {
         const formData = await request.formData();
@@ -103,6 +111,8 @@ export async function POST(request: Request) {
                 { status: 502 }
             );
         }
+
+        loggKostnad(tilgang.kode, files.map((f) => f.name).join(", "), message.usage);
 
         const toolUse = message.content.find((b) => b.type === "tool_use");
         if (!toolUse || toolUse.type !== "tool_use") {

@@ -703,3 +703,33 @@ a {
 .duel-col .facts-3 {
     grid-template-columns: repeat(3, 1fr);
 }
+
+
+/* Tilgangskode (pilot) */
+.kodeboks {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 16px;
+}
+
+.kodetekst {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.kodeboks input {
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    flex: 1;
+}
+
+    .kodeboks input:focus {
+        outline: 2px solid var(--accent);
+        border-color: var(--accent);
+    }
