@@ -8,8 +8,8 @@
     /* Tilstandsgrad = alvorsgrad. Fargene betyr noe, de er ikke pynt. */
     --tg3: #b42318;
     --tg3-bg: #fef3f2;
-    --tg2: #b54708;
-    --tg2-bg: #fffaeb;
+    --tg2: #ea580c; /* middels = oransje (endret fra amber på kundeønske) */
+    --tg2-bg: #fff7ed;
     --tg1: #067647;
     --tg1-bg: #ecfdf3;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -732,4 +732,16 @@ a {
     .kodeboks input:focus {
         outline: 2px solid var(--accent);
         border-color: var(--accent);
+    }
+
+
+/* Donut i duell-kolonnene */
+.duel-donut {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 14px;
+}
+
+    .duel-donut .donutboks {
+        padding: 8px 14px;
     }

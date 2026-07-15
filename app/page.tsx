@@ -8,11 +8,19 @@ import type { Rapport } from "@/lib/schema";
 
 type Mode = "en" | "duell";
 
+class TilgangFeil extends Error { }
+
 async function analyserFiler(filer: File[]): Promise<Rapport> {
     const body = new FormData();
     filer.forEach((f) => body.append("file", f));
-    const res = await fetch("/api/analyze", { method: "POST", body });
+    const kode = typeof window !== "undefined" ? sessionStorage.getItem("tilgangskode") : null;
+    const res = await fetch("/api/analyze", {
+        method: "POST",
+        body,
+        headers: kode ? { "x-tilgangskode": kode } : {},
+    });
     const data = await res.json();
+    if (res.status === 401) throw new TilgangFeil(data.error ?? "Tilgangskode kreves.");
     if (!res.ok) throw new Error(data.error ?? "Noe gikk galt.");
     return data.rapport as Rapport;
 }
@@ -30,6 +38,8 @@ export default function Home() {
     const [error, setError] = useState<string | null>(null);
     const [enkelt, setEnkelt] = useState<{ rapport: Rapport; dokumenter: DokRef[] } | null>(null);
     const [duell, setDuell] = useState<NavngittRapport[] | null>(null);
+    const [trengerKode, setTrengerKode] = useState(false);
+    const [kodeInput, setKodeInput] = useState("");
 
     const fylteSlots = slots.filter((s) => s.length > 0);
     const klar = mode === "en" ? enFiler.length > 0 : fylteSlots.length >= 2;
@@ -72,7 +82,12 @@ export default function Home() {
                 );
             }
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Noe gikk galt.");
+            if (e instanceof TilgangFeil) {
+                setTrengerKode(true);
+                setError(e.message);
+            } else {
+                setError(e instanceof Error ? e.message : "Noe gikk galt.");
+            }
         } finally {
             setLoading(false);
         }
@@ -187,6 +202,42 @@ export default function Home() {
                         </div>
                     )}
                     {error && <div className="error">{error}</div>}
+                    {trengerKode && (
+                        <div className="kodeboks no-print">
+                            <div className="kodetekst">
+                                Denne piloten krever en tilgangskode. Skriv inn koden du har
+                                fått, så husker vi den i denne økten.
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <input
+                                    type="password"
+                                    value={kodeInput}
+                                    placeholder="Tilgangskode"
+                                    onChange={(e) => setKodeInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && kodeInput.trim()) {
+                                            sessionStorage.setItem("tilgangskode", kodeInput.trim());
+                                            setTrengerKode(false);
+                                            setError(null);
+                                            analyser();
+                                        }
+                                    }}
+                                />
+                                <button
+                                    className="btn"
+                                    disabled={!kodeInput.trim()}
+                                    onClick={() => {
+                                        sessionStorage.setItem("tilgangskode", kodeInput.trim());
+                                        setTrengerKode(false);
+                                        setError(null);
+                                        analyser();
+                                    }}
+                                >
+                                    Bruk kode
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
 

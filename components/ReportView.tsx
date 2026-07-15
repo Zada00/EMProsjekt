@@ -31,7 +31,7 @@ const KOSTNAD_NIVA: Record<string, { label: string; badge: string }> = {
 };
 
 /** Enkel SVG-donut over risikofordelingen. Ingen biblioteker. */
-function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: number }) {
+export function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: number }) {
     const total = hoy + mid + lav;
     if (total === 0) return null;
     const R = 34;
