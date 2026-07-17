@@ -751,4 +751,23 @@ a {
     padding: 6px 10px;
     flex-shrink: 0;
     align-self: center;
+    flex-direction: column;
+    gap: 4px;
 }
+
+.donutlegende-mini {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    justify-content: center;
+}
+
+    .donutlegende-mini i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+        margin-right: 4px;
+        vertical-align: -1px;
+    }

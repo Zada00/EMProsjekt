@@ -76,6 +76,13 @@ export function RisikoDonut({ hoy, mid, lav, kompakt }: { hoy: number; mid: numb
                 </div>
 
             )}
+            {kompakt && (
+                <div className="donutlegende-mini" aria-hidden="true">
+                    {hoy > 0 && <span><i style={{ background: "var(--tg3)" }} /> {hoy}</span>}
+                    {mid > 0 && <span><i style={{ background: "var(--tg2)" }} /> {mid}</span>}
+                    {lav > 0 && <span><i style={{ background: "var(--tg1)" }} /> {lav}</span>}
+                </div>
+            )}
         </div>
     );
 }
