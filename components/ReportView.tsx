@@ -31,7 +31,7 @@ const KOSTNAD_NIVA: Record<string, { label: string; badge: string }> = {
 };
 
 /** Enkel SVG-donut over risikofordelingen. Ingen biblioteker. */
-export function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: number }) {
+export function RisikoDonut({ hoy, mid, lav, kompakt }: { hoy: number; mid: number; lav: number; kompakt?: boolean }) {
     const total = hoy + mid + lav;
     if (total === 0) return null;
     const R = 34;
@@ -43,7 +43,7 @@ export function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: 
     ].filter((d) => d.n > 0);
     let offset = 0;
     return (
-        <div className="donutboks" aria-label={`Risikofordeling: ${hoy} høy, ${mid} middels, ${lav} lav`}>
+        <div className={`donutboks${kompakt ? " kompakt" : ""}`} aria-label={`Risikofordeling: ${hoy} høy, ${mid} middels, ${lav} lav`}>
             <svg width="92" height="92" viewBox="0 0 92 92" role="img">
                 <circle cx="46" cy="46" r={R} fill="none" stroke="var(--line)" strokeWidth="12" />
                 {deler.map((d, i) => {
@@ -67,11 +67,15 @@ export function RisikoDonut({ hoy, mid, lav }: { hoy: number; mid: number; lav: 
                     {total}
                 </text>
             </svg>
-            <div className="donutlegende">
-                {hoy > 0 && <span><i style={{ background: "var(--tg3)" }} /> {hoy} høy</span>}
-                {mid > 0 && <span><i style={{ background: "var(--tg2)" }} /> {mid} middels</span>}
-                {lav > 0 && <span><i style={{ background: "var(--tg1)" }} /> {lav} lav</span>}
-            </div>
+            {!kompakt && (
+
+                <div className="donutlegende">
+                    {hoy > 0 && <span><i style={{ background: "var(--tg3)" }} /> {hoy} høy</span>}
+                    {mid > 0 && <span><i style={{ background: "var(--tg2)" }} /> {mid} middels</span>}
+                    {lav > 0 && <span><i style={{ background: "var(--tg1)" }} /> {lav} lav</span>}
+                </div>
+
+            )}
         </div>
     );
 }

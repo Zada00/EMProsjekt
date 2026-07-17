@@ -735,13 +735,20 @@ a {
     }
 
 
-/* Donut i duell-kolonnene */
-.duel-donut {
+/* Donut ved siden av sammendraget i duell-kolonnene */
+.duel-oversikt {
     display: flex;
-    justify-content: center;
-    margin: 0 0 14px;
+    gap: 10px;
+    align-items: stretch;
 }
 
-    .duel-donut .donutboks {
-        padding: 8px 14px;
+    .duel-oversikt .summary {
+        flex: 1;
+        min-width: 0;
     }
+
+.donutboks.kompakt {
+    padding: 6px 10px;
+    flex-shrink: 0;
+    align-self: center;
+}
