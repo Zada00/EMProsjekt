@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Rapport } from "@/lib/schema";
-import { aapneKilde, type DokRef } from "@/components/ReportView";
+import { aapneKilde, RisikoDonut, type DokRef } from "@/components/ReportView";
 
 /**
  * Boligduell: N analyserte rapporter side om side (2, 3, 5 – så mange brukeren vil).
@@ -133,7 +133,10 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
             {rapport.dokument_advarsel && (
                 <div className="error" style={{ marginBottom: 10, fontSize: 13 }}>⚠ {rapport.dokument_advarsel}</div>
             )}
-            <div className="summary" style={{ fontSize: 14 }}>{rapport.sammendrag}</div>
+            <div className="duel-oversikt">
+                <div className="summary" style={{ fontSize: 14 }}>{rapport.sammendrag}</div>
+                <RisikoDonut hoy={hoy} mid={mid} lav={lav} kompakt />
+            </div>
 
             <div className="facts" style={{ margin: "14px 0 8px" }}>
                 <div className="fact">
@@ -154,6 +157,7 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
                     <div className="label">Høy risiko</div>
                     <div className="value" style={{ color: hoy > 0 ? "var(--tg3)" : undefined }}>{hoy}</div>
                 </div>
+
                 <div className="fact">
                     <div className="label">Middels</div>
                     <div className="value" style={{ color: mid > 0 ? "var(--tg2)" : undefined }}>{mid}</div>

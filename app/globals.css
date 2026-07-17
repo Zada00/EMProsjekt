@@ -8,8 +8,8 @@
     /* Tilstandsgrad = alvorsgrad. Fargene betyr noe, de er ikke pynt. */
     --tg3: #b42318;
     --tg3-bg: #fef3f2;
-    --tg2: #b54708;
-    --tg2-bg: #fffaeb;
+    --tg2: #ea580c; /* middels = oransje (endret fra amber på kundeønske) */
+    --tg2-bg: #fff7ed;
     --tg1: #067647;
     --tg1-bg: #ecfdf3;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -703,3 +703,71 @@ a {
 .duel-col .facts-3 {
     grid-template-columns: repeat(3, 1fr);
 }
+
+
+/* Tilgangskode (pilot) */
+.kodeboks {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 16px;
+}
+
+.kodetekst {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+.kodeboks input {
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    flex: 1;
+}
+
+    .kodeboks input:focus {
+        outline: 2px solid var(--accent);
+        border-color: var(--accent);
+    }
+
+
+/* Donut ved siden av sammendraget i duell-kolonnene */
+.duel-oversikt {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+    .duel-oversikt .summary {
+        flex: 1;
+        min-width: 0;
+    }
+
+.donutboks.kompakt {
+    padding: 6px 10px;
+    flex-shrink: 0;
+    align-self: center;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.donutlegende-mini {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    justify-content: center;
+}
+
+    .donutlegende-mini i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 2px;
+        margin-right: 4px;
+        vertical-align: -1px;
+    }

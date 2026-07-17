@@ -177,3 +177,22 @@ export const rapportJsonSchema = {
         "ikke_funnet",
     ],
 } as const;
+
+
+/**
+ * SYNC-VAKT: zod-skjemaet (validering) og JSON-skjemaet (sendes til modellen)
+ * vedlikeholdes for hånd og MÅ ha samme felter. Denne sjekken feiler høyt ved
+ * oppstart/bygg hvis noen legger til/fjerner et felt bare ett sted – som er
+ * den mest sannsynlige fremtidige buggen i kodebasen.
+ */
+{
+    const zodFelter = Object.keys(rapportSchema.shape).sort();
+    const jsonFelter = Object.keys(rapportJsonSchema.properties).sort();
+    const bareIZod = zodFelter.filter((f) => !jsonFelter.includes(f));
+    const bareIJson = jsonFelter.filter((f) => !zodFelter.includes(f));
+    if (bareIZod.length || bareIJson.length) {
+        throw new Error(
+            `schema.ts er ute av sync! Kun i zod: [${bareIZod.join(", ")}] – kun i JSON-skjema: [${bareIJson.join(", ")}]. Oppdater begge.`
+        );
+    }
+}

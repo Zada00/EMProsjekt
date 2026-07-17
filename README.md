@@ -108,3 +108,25 @@ git push -u origin main
 ```
 
 (Bytt til en feature-branch hvis `main` alt har innhold.)
+
+
+---
+
+## Pilot-herding (utført)
+
+- **Tilgangskoder**: sett `ACCESS_CODES=kode1,kode2` i `.env.local` – én kode per kunde.
+  Tom = åpen (lokal utvikling). Frontend spør om kode ved 401 og husker den i økten.
+- **Rate-limit/kvote**: `RATE_PER_MIN` (std 6) og `QUOTA_PER_DAY` (std 40) per kode. I minne –
+  holder for én instans; bytt til Redis ved skalering.
+- **Kostnadslogging**: hver analyse logges i serverterminalen med tokens og ≈ kr, pluss dagssum.
+- **Sikkerhets-headers**: X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy.
+- **Feilrespons**: zod-detaljer sendes ikke til klient i produksjon.
+- **Sync-vakt**: bygget feiler høyt hvis zod- og JSON-skjema i `lib/schema.ts` glir fra hverandre.
+- **Tester**: `npm test` (vitest) – regresjonsvern for skjema-normaliseringen.
+
+## Gjenstår før ekte kundedata (IKKE kode)
+
+- **Databehandleravtale (DPA)** med Anthropic + personvernerklæring – kundedokumenter sendes til API-et.
+- `npm audit`: 2 kjente sårbarheter i byggekjeden (postcss via Next) – krever kontrollert
+  Next-oppgradering; ikke kjør `audit fix --force`.
+- HTTPS/domene ved deploy (håndteres av plattformen, f.eks. Vercel).
