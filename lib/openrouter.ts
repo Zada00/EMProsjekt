@@ -21,7 +21,8 @@ const URL = "https://openrouter.ai/api/v1/chat/completions";
 export async function analyserMedOpenRouter(
   system: string,
   bruker: string,
-  schema: object
+  schema: object,
+  modell: string = OPENROUTER_MODEL // overstyres av testlab-scriptet; route.ts bruker env
 ): Promise<{ resultat: unknown; tokens: { inn: number; ut: number } }> {
   if (!API_KEY) {
     throw new Error("OPENROUTER_API_KEY mangler i .env.local (hent på openrouter.ai).");
@@ -32,7 +33,7 @@ export async function analyserMedOpenRouter(
   let res = await kall(system, bruker, {
     type: "json_schema",
     json_schema: { name: "lever_rapport", schema },
-  });
+  }, modell);
 
   if (!res.ok) {
     const feiltekst = await res.text().catch(() => "");
@@ -42,17 +43,18 @@ export async function analyserMedOpenRouter(
           "\n\nSVAR KUN med ett gyldig JSON-objekt som følger dette skjemaet, uten annen tekst:\n" +
           JSON.stringify(schema),
         bruker,
-        undefined
+        undefined,
+        modell
       );
-      if (!res.ok) throw await tilFeil(res);
+      if (!res.ok) throw await tilFeil(res, undefined, modell);
     } else {
-      throw await tilFeil(res, feiltekst);
+      throw await tilFeil(res, feiltekst, modell);
     }
   }
 
   const data = await res.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error(`Tomt svar fra ${OPENROUTER_MODEL}.`);
+  if (!content) throw new Error(`Tomt svar fra ${modell}.`);
 
   // Rens (samme lærdom som fra Ollama): gjerder og løstekst utenfor klammene
   let renset = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
@@ -65,10 +67,10 @@ export async function analyserMedOpenRouter(
     resultat = JSON.parse(renset);
   } catch {
     console.error(
-      "[openrouter] ugyldig JSON fra", OPENROUTER_MODEL,
+      "[openrouter] ugyldig JSON fra", modell,
       "| starter med:", JSON.stringify(content.slice(0, 200))
     );
-    throw new Error(`${OPENROUTER_MODEL} leverte ikke gyldig JSON (detaljer i serverloggen).`);
+    throw new Error(`${modell} leverte ikke gyldig JSON (detaljer i serverloggen).`);
   }
 
   return {
@@ -80,7 +82,12 @@ export async function analyserMedOpenRouter(
   };
 }
 
-async function kall(system: string, bruker: string, response_format: object | undefined) {
+async function kall(
+  system: string,
+  bruker: string,
+  response_format: object | undefined,
+  modell: string
+) {
   return fetch(URL, {
     method: "POST",
     headers: {
@@ -89,7 +96,7 @@ async function kall(system: string, bruker: string, response_format: object | un
       "X-Title": "BoligCopilot testlab",
     },
     body: JSON.stringify({
-      model: OPENROUTER_MODEL,
+      model: modell,
       temperature: 0,
       ...(response_format ? { response_format } : {}),
       messages: [
@@ -100,13 +107,17 @@ async function kall(system: string, bruker: string, response_format: object | un
   });
 }
 
-async function tilFeil(res: Response, forlest?: string): Promise<Error> {
+async function tilFeil(
+  res: Response,
+  forlest?: string,
+  modell: string = OPENROUTER_MODEL
+): Promise<Error> {
   const detalj = forlest ?? (await res.text().catch(() => ""));
   if (res.status === 429) {
     return new Error("OpenRouter: rate-limit truffet (gratiskvoten er 50 kall/dag, ~20/min). Vent litt.");
   }
   if (res.status === 404) {
-    return new Error(`Modellen "${OPENROUTER_MODEL}" finnes ikke (gratislisten roterer – sjekk openrouter.ai/models).`);
+    return new Error(`Modellen "${modell}" finnes ikke (gratislisten roterer – sjekk openrouter.ai/models).`);
   }
   return new Error(`OpenRouter svarte ${res.status}: ${detalj.slice(0, 300)}`);
 }
