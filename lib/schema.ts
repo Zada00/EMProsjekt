@@ -158,7 +158,7 @@ export const rapportJsonSchema = {
         mulige_kostnader: {
             type: "array",
             description:
-                "Mulige fremtidige kostnader kjøperen bør regne med. ALDRI oppgi presise kronebeløp – bruk kun grov skala og forklaring med forbehold.",
+                "Mulige fremtidige kostnader kjøperen bør regne med. ALDRI egne kronebeløp – kun grov skala og forklaring med forbehold. Unntak: beløp som står ordrett i dokumentet (sjablonganslag) kan gjengis, merket som rapportens anslag.",
             items: {
                 type: "object",
                 properties: {
@@ -170,7 +170,7 @@ export const rapportJsonSchema = {
                     },
                     vurdering: {
                         type: "string",
-                        description: "Kort forklaring med tydelig forbehold. Ingen presise tall.",
+                        description: "Kort forklaring med tydelig forbehold. Ingen egne tall – kun beløp som står ordrett i dokumentet, merket som rapportens anslag.",
                     },
                     kilde: { type: ["string", "null"] },
                 },

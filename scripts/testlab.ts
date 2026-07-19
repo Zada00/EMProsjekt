@@ -71,7 +71,28 @@ function sideAv(kilde: string): number | null {
   const m = kilde.match(/\d+/);
   return m ? Number(m[0]) : null;
 }
-function skaar(r: Rapport) {
+/**
+ * Kronebeløp-vakt v2 (etter policyendring): rapportens egne sjablonganslag er
+ * LOV å gjengi – oppdiktede tall er ikke. Vi plukker alle beløp i svaret og
+ * sjekker at sifrene finnes i kildeteksten (normalisert uten mellomrom/punktum).
+ */
+function beloepIkkeIKilden(r: Rapport, kildetekst: string): string[] {
+  // Slå kun sammen tusenskille (mellomrom/punktum MELLOM sifre) i kilden,
+  // og krev ordgrense – ellers gir sammenlimte tallsekvenser falske frikjennelser.
+  const kilde = kildetekst.replace(/(?<=\d)[\s.](?=\d)/g, "");
+  const treff =
+    JSON.stringify(r).match(/(?:kr|NOK)\s*\d[\d\s.,–\-+]*|\d[\d\s.,–\-+]*\d\+?\s*(?:kr|kroner|NOK|,-)/gi) ?? [];
+  const ukjente = new Set<string>();
+  for (const t of treff) {
+    for (const num of t.match(/\d[\d\s.]*\d|\d+/g) ?? []) {
+      const n = num.replace(/[\s.]/g, "");
+      if (n.length >= 3 && !new RegExp(`\\b${n}\\b`).test(kilde)) ukjente.add(n);
+    }
+  }
+  return [...ukjente];
+}
+
+function skaar(r: Rapport, kildetekst: string) {
   const tg3 = r.risikoer.filter((x) => x.tg === 3 || x.alvorlighet === "høy");
   const tg2 = r.risikoer.filter((x) => x.tg === 2);
   const funn = FASIT.tg3.map((f) => {
@@ -85,7 +106,7 @@ function skaar(r: Rapport) {
       kilde: treff?.kilde ?? "-",
     };
   });
-  const kroner = JSON.stringify(r).match(/\d[\d\s.]{3,}\s*(?:kr|kroner|NOK)/i); // presise beløp = regelbrudd
+  const ukjenteBeloep = beloepIkkeIKilden(r, kildetekst); // beløp som IKKE står i rapporten = regelbrudd
 
   // Feilklassene fra Nemotron-testen:
   // 1) Hallusinert TG3: flere tg=3-funn enn fasit-rapporten faktisk har.
@@ -102,7 +123,7 @@ function skaar(r: Rapport) {
 
   return {
     funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
-    kroner: !!kroner, hallusinertTg3, dokKilde, fordeling,
+    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling,
   };
 }
 
@@ -133,10 +154,10 @@ for (const [i, modell] of modeller.entries()) {
     // Samme normalisering som produksjon (TG→alvorlighet). `korrigert` er
     // kvalitetssignalet: hvor ofte modellen satte alvorlighet i strid med TG selv.
     const { rapport, korrigert } = normaliserAlvorlighet(parsed.data);
-    const s = skaar(rapport);
+    const s = skaar(rapport, tekst);
     const tg3ok = s.funn.every((f) => f.funnet);
     const sideok = s.funn.every((f) => f.riktigSide);
-    const rene = !s.kroner && !s.hallusinertTg3 && !s.dokKilde;
+    const rene = s.ukjenteBeloep.length === 0 && !s.hallusinertTg3 && !s.dokKilde;
     const status =
       tg3ok && sideok && s.antTg2 >= FASIT.minTg2 && rene ? "BESTÅTT"
       : tg3ok ? "DELVIS" : "STRØK";
@@ -147,7 +168,7 @@ for (const [i, modell] of modeller.entries()) {
         s.funn.map((f) => `${f.navn}: ${f.funnet ? (f.riktigSide ? "✓" : `funnet, feil kilde (${f.kilde})`) : "IKKE FUNNET"}`).join(" | ") +
         ` | TG2: ${s.antTg2} (krav ≥${FASIT.minTg2}) | fordeling h/m/l: ${s.fordeling.høy}/${s.fordeling.middels}/${s.fordeling.lav} av ${s.antRisiko}` +
         (korrigert ? ` | ℹ ${korrigert} alvorlighet(er) korrigert av TG-normaliseringen` : "") +
-        (s.kroner ? " | ⚠ kronebeløp (regelbrudd!)" : "") +
+        (s.ukjenteBeloep.length ? ` | ⚠ oppdiktede beløp ikke i rapporten: ${s.ukjenteBeloep.join(", ")}` : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
         (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : ""),
     });
