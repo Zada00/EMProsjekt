@@ -36,19 +36,42 @@ const { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } = await import
 type Rapport = import("../lib/schema").Rapport;
 
 // ---- Fasit for referansetesten ----
+// Bygger på rapportens egen oppsummeringstabell (s. 4): 14 kontrollpunkter med
+// TG-status – 3× TG3 + 11× TG2. Gruppert i 12 sakskomplekser fordi modeller
+// legitimt slår sammen (vannrør bad/kjøkken/toalett) eller splitter (brann i to).
+// Detaljsidene har i tillegg småting utenfor tabellen (hull i veggplate s. 7,
+// stakeluke TGIU) – de kreves ikke, men gir plusspoeng manuelt.
 const FASIT = {
   tg3: [
     { navn: "Fukt i bod", ord: /fukt|vann|kondens/i, sted: /bod/i, side: 7 },
     { navn: "Brannsikkerhet", ord: /brann|røyk|slukk/i, sted: /./, side: 8 },
   ],
-  minTg2: 3, // "flere TG2" – juster ved behov
   maxTg3Funn: 3, // bod + røykvarslere + brannslokkingsutstyr (de to siste slås ofte sammen)
+  dekning: [
+    { navn: "Vannrør (bad/kjøkken/toalett)", ord: /vannrør|kobberrør/i },
+    { navn: "Membran/tettesjikt bad", ord: /membran|tettesjikt/i },
+    { navn: "Fukt i tilliggende konstruksjoner", ord: /fukt(skad|.*konstruksjon)/i },
+    { navn: "Avløpsrør/sluk ikke byttet", ord: /sluk/i },
+    { navn: "Komfyrvakt", ord: /komfyrvakt/i },
+    { navn: "Fukt/svertesopp i bod", ord: /bod/i },
+    { navn: "Skjevheter i gulv", ord: /skjev/i },
+    { navn: "Elektrisk anlegg/sikringsskap", ord: /sikringsskap|elektrisk/i },
+    { navn: "Røykvarslere", ord: /røykvarsl/i },
+    { navn: "Brannslokkingsutstyr", ord: /brannslokk|brannslukk|slukkeutstyr/i },
+    { navn: "Vinduer (alder/fastsittende)", ord: /vindu/i },
+    { navn: "Balkongrekkverk", ord: /rekkverk|balkong/i },
+  ],
 };
 
 // ---- Argumenter ----
-const [pdfSti, ...modellArgs] = process.argv.slice(2);
+// --n=3 kjører hver modell 3 ganger og rapporterer stabilitet (LLM-er er ikke
+// deterministiske – konklusjonene skal likevel være stabile fra kjøring til kjøring).
+const alleArgs = process.argv.slice(2);
+const nArg = alleArgs.find((a) => a.startsWith("--n="));
+const antKjoringer = Math.max(1, Number(nArg?.split("=")[1] ?? 1) || 1);
+const [pdfSti, ...modellArgs] = alleArgs.filter((a) => !a.startsWith("--"));
 if (!pdfSti) {
-  console.error("Bruk: npx tsx scripts/testlab.ts <sti-til-pdf> [modell1 modell2 ...]");
+  console.error("Bruk: npx tsx scripts/testlab.ts <sti-til-pdf> [--n=3] [modell1 modell2 ...]");
   process.exit(1);
 }
 const modeller = modellArgs.length ? modellArgs : [OPENROUTER_MODEL];
@@ -121,9 +144,13 @@ function skaar(r: Rapport, kildetekst: string) {
     lav: r.risikoer.filter((x) => x.alvorlighet === "lav").length,
   };
 
+  // Dekning mot s. 4-tabellen: er alle 12 sakskompleksene representert?
+  const altTekst = r.risikoer.map((x) => `${x.tittel} ${x.forklaring}`).join("\n");
+  const mangler = FASIT.dekning.filter((d) => !d.ord.test(altTekst)).map((d) => d.navn);
+
   return {
     funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
-    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling,
+    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling, mangler,
   };
 }
 
@@ -131,9 +158,14 @@ function skaar(r: Rapport, kildetekst: string) {
 type Rad = { modell: string; status: string; detaljer: string; tokens?: string; sek?: number };
 const rader: Rad[] = [];
 
-for (const [i, modell] of modeller.entries()) {
-  if (i > 0) await new Promise((r) => setTimeout(r, 8000)); // pust mellom modeller
-  process.stdout.write(`▶ ${modell} ... `);
+let førsteKall = true;
+for (const modell of modeller) {
+  const statuser: string[] = [];
+  for (let k = 1; k <= antKjoringer; k++) {
+  const navn = antKjoringer > 1 ? `${modell} (kjøring ${k}/${antKjoringer})` : modell;
+  if (!førsteKall) await new Promise((r) => setTimeout(r, 8000)); // pust mellom kall
+  førsteKall = false;
+  process.stdout.write(`▶ ${navn} ... `);
   const t0 = Date.now();
   try {
     const { resultat, tokens } = await analyserMedOpenRouter(
@@ -141,13 +173,17 @@ for (const [i, modell] of modeller.entries()) {
       bruker, rapportJsonSchema, modell
     );
     const sek = Math.round((Date.now() - t0) / 1000);
-    const fil = join("testlab-resultater", modell.replace(/[^a-z0-9.-]+/gi, "_") + ".json");
+    const fil = join(
+      "testlab-resultater",
+      modell.replace(/[^a-z0-9.-]+/gi, "_") + (antKjoringer > 1 ? `_${k}` : "") + ".json"
+    );
     writeFileSync(fil, JSON.stringify(resultat, null, 2));
 
     const parsed = rapportSchema.safeParse(resultat);
     if (!parsed.success) {
       const p = parsed.error.issues[0];
-      rader.push({ modell, status: "UGYLDIG SKJEMA", detaljer: `${p?.path?.join(".")}: ${p?.message} (rå-svar: ${fil})`, sek });
+      statuser.push("UGYLDIG SKJEMA");
+      rader.push({ modell: navn, status: "UGYLDIG SKJEMA", detaljer: `${p?.path?.join(".")}: ${p?.message} (rå-svar: ${fil})`, sek });
       console.log(`skjemafeil etter ${sek}s`);
       continue;
     }
@@ -159,14 +195,17 @@ for (const [i, modell] of modeller.entries()) {
     const sideok = s.funn.every((f) => f.riktigSide);
     const rene = s.ukjenteBeloep.length === 0 && !s.hallusinertTg3 && !s.dokKilde;
     const status =
-      tg3ok && sideok && s.antTg2 >= FASIT.minTg2 && rene ? "BESTÅTT"
+      tg3ok && sideok && s.mangler.length === 0 && rene ? "BESTÅTT"
       : tg3ok ? "DELVIS" : "STRØK";
+    statuser.push(status);
     rader.push({
-      modell, status, sek,
+      modell: navn, status, sek,
       tokens: `${tokens.inn}/${tokens.ut}`,
       detaljer:
         s.funn.map((f) => `${f.navn}: ${f.funnet ? (f.riktigSide ? "✓" : `funnet, feil kilde (${f.kilde})`) : "IKKE FUNNET"}`).join(" | ") +
-        ` | TG2: ${s.antTg2} (krav ≥${FASIT.minTg2}) | fordeling h/m/l: ${s.fordeling.høy}/${s.fordeling.middels}/${s.fordeling.lav} av ${s.antRisiko}` +
+        ` | dekning: ${FASIT.dekning.length - s.mangler.length}/${FASIT.dekning.length} sakskomplekser fra s. 4-tabellen` +
+        (s.mangler.length ? ` (mangler: ${s.mangler.join(", ")})` : "") +
+        ` | fordeling h/m/l: ${s.fordeling.høy}/${s.fordeling.middels}/${s.fordeling.lav} av ${s.antRisiko}` +
         (korrigert ? ` | ℹ ${korrigert} alvorlighet(er) korrigert av TG-normaliseringen` : "") +
         (s.ukjenteBeloep.length ? ` | ⚠ oppdiktede beløp ikke i rapporten: ${s.ukjenteBeloep.join(", ")}` : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
@@ -175,8 +214,21 @@ for (const [i, modell] of modeller.entries()) {
     console.log(`${status} etter ${sek}s`);
   } catch (err) {
     const sek = Math.round((Date.now() - t0) / 1000);
-    rader.push({ modell, status: "FEILET", detaljer: err instanceof Error ? err.message : String(err), sek });
+    statuser.push("FEILET");
+    rader.push({ modell: navn, status: "FEILET", detaljer: err instanceof Error ? err.message : String(err), sek });
     console.log(`feilet etter ${sek}s`);
+  }
+  } // kjøringer
+
+  // Stabilitet på tvers av kjøringene: konklusjonen skal ikke flakke.
+  if (antKjoringer > 1) {
+    const stabil = new Set(statuser).size === 1;
+    rader.push({
+      modell: `${modell} – STABILITET`,
+      status: stabil ? "STABIL" : "USTABIL",
+      detaljer: `statuser: [${statuser.join(", ")}]` +
+        (stabil ? "" : " – konklusjonen flakker mellom kjøringer; ikke pilotklar uansett enkeltresultat"),
+    });
   }
 }
 

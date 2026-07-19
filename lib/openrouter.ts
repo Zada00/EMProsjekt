@@ -98,6 +98,8 @@ async function kall(
     body: JSON.stringify({
       model: modell,
       temperature: 0,
+      seed: 42, // reduserer kjøring-til-kjøring-variasjon der leverandøren støtter det
+
       ...(response_format ? { response_format } : {}),
       messages: [
         { role: "system", content: system },
