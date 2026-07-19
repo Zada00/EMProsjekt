@@ -31,7 +31,7 @@ try {
 // Importeres FØRST NÅ, etter at env er lastet (modulene leser env ved import).
 const { analyserMedOpenRouter, OPENROUTER_MODEL } = await import("../lib/openrouter");
 const { pdfTilTekst } = await import("../lib/pdftext");
-const { SYSTEM_PROMPT } = await import("../lib/prompt");
+const { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } = await import("../lib/prompt");
 const { rapportJsonSchema, rapportSchema } = await import("../lib/schema");
 type Rapport = import("../lib/schema").Rapport;
 
@@ -42,6 +42,7 @@ const FASIT = {
     { navn: "Brannsikkerhet", ord: /brann|røyk|slukk/i, sted: /./, side: 8 },
   ],
   minTg2: 3, // "flere TG2" – juster ved behov
+  maxTg3Funn: 3, // bod + røykvarslere + brannslokkingsutstyr (de to siste slås ofte sammen)
 };
 
 // ---- Argumenter ----
@@ -85,7 +86,19 @@ function skaar(r: Rapport) {
     };
   });
   const kroner = JSON.stringify(r).match(/\d[\d\s.]{3,}\s*(?:kr|kroner|NOK)/i); // presise beløp = regelbrudd
-  return { funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length, kroner: !!kroner };
+
+  // Feilklassene fra Nemotron-testen:
+  // 1) Hallusinert TG3: flere tg=3-funn enn fasit-rapporten faktisk har.
+  const hallusinertTg3 = r.risikoer.filter((x) => x.tg === 3).length > FASIT.maxTg3Funn;
+  // 2) TG3 nedgradert: et tg=3-funn med alvorlighet lavere enn "høy".
+  const nedgradertTg3 = r.risikoer.filter((x) => x.tg === 3 && x.alvorlighet !== "høy");
+  // 3) "Dok 1"-kilder ved ett dokument.
+  const dokKilde = r.risikoer.some((x) => /dok\s*\d/i.test(x.kilde));
+
+  return {
+    funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
+    kroner: !!kroner, hallusinertTg3, nedgradertTg3: nedgradertTg3.length, dokKilde,
+  };
 }
 
 // ---- Kjør sekvensielt (gratiskvote: ~20 kall/min, 50/dag) ----
@@ -97,7 +110,10 @@ for (const [i, modell] of modeller.entries()) {
   process.stdout.write(`▶ ${modell} ... `);
   const t0 = Date.now();
   try {
-    const { resultat, tokens } = await analyserMedOpenRouter(SYSTEM_PROMPT, bruker, rapportJsonSchema, modell);
+    const { resultat, tokens } = await analyserMedOpenRouter(
+      SYSTEM_PROMPT + TEKSTMOTOR_REGLER, // samme prompt som route.ts sin OpenRouter-gren
+      bruker, rapportJsonSchema, modell
+    );
     const sek = Math.round((Date.now() - t0) / 1000);
     const fil = join("testlab-resultater", modell.replace(/[^a-z0-9.-]+/gi, "_") + ".json");
     writeFileSync(fil, JSON.stringify(resultat, null, 2));
@@ -112,8 +128,9 @@ for (const [i, modell] of modeller.entries()) {
     const s = skaar(parsed.data);
     const tg3ok = s.funn.every((f) => f.funnet);
     const sideok = s.funn.every((f) => f.riktigSide);
+    const rene = !s.kroner && !s.hallusinertTg3 && s.nedgradertTg3 === 0 && !s.dokKilde;
     const status =
-      tg3ok && sideok && s.antTg2 >= FASIT.minTg2 && !s.kroner ? "BESTÅTT"
+      tg3ok && sideok && s.antTg2 >= FASIT.minTg2 && rene ? "BESTÅTT"
       : tg3ok ? "DELVIS" : "STRØK";
     rader.push({
       modell, status, sek,
@@ -121,7 +138,10 @@ for (const [i, modell] of modeller.entries()) {
       detaljer:
         s.funn.map((f) => `${f.navn}: ${f.funnet ? (f.riktigSide ? "✓" : `funnet, feil kilde (${f.kilde})`) : "IKKE FUNNET"}`).join(" | ") +
         ` | TG2: ${s.antTg2} (krav ≥${FASIT.minTg2}) | risikoer totalt: ${s.antRisiko}` +
-        (s.kroner ? " | ⚠ oppga kronebeløp (regelbrudd!)" : ""),
+        (s.kroner ? " | ⚠ kronebeløp (regelbrudd!)" : "") +
+        (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
+        (s.nedgradertTg3 ? ` | ⚠ ${s.nedgradertTg3} TG3-funn nedgradert under 'høy'` : "") +
+        (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : ""),
     });
     console.log(`${status} etter ${sek}s`);
   } catch (err) {

@@ -25,3 +25,20 @@ ABSOLUTTE REGLER:
 6. "sporsmal_til_visning" skal være konkrete, nyttige spørsmål kjøperen kan stille megler eller selger – basert på det som er uklart eller bekymringsverdig i nettopp dette dokumentet.
 
 Husk: dette skal hjelpe en kjøper å forstå og stille gode spørsmål – ikke erstatte en takstmann, megler eller juridisk rådgiver. Hvis dokumentet ikke er en salgsoppgave/tilstandsrapport, eller er uleselig, forklar det i "sammendrag".`;
+
+/**
+ * Skjerpede regler som KUN sendes til tekstmotorene (OpenRouter/Ollama).
+ * Claude følger dette av seg selv; mindre modeller trenger det eksplisitt.
+ * Lærdom fra Nemotron-testen mot Sandvika-fasiten: hallusinert TG3 på badet
+ * (rapporten sa TG2), ekte TG3 nedgradert til "middels", oppdiktede kronebeløp
+ * ("150 000–400 000 kr"), "Dok 1"-kilder ved ett dokument, og markdown i tekstfelt.
+ * Holdes ADSKILT fra SYSTEM_PROMPT så Claude-fasiten ikke perturberes.
+ */
+export const TEKSTMOTOR_REGLER = `
+
+SKJERPEDE REGLER – brudd på én av disse gjør hele svaret ubrukelig:
+A. TILSTANDSGRAD: "tg"-feltet skal KUN gjengi tilstandsgraden som står ORDRETT i rapporten for akkurat det forholdet. Du skal ALDRI sette, gjette eller "oppjustere" en TG selv. Står det ingen TG ved forholdet: bruk null. Skriv aldri "TG3" i tittel eller forklaring om rapporten sier TG2.
+B. ALVORLIGHET: alle forhold rapporten gir TG3 skal ha alvorlighet "høy" – aldri "middels" eller "lav". TG2 er normalt "middels"; kun bagateller kan settes til "lav".
+C. KRONEBELØP: ingen kronebeløp noe sted i svaret – verken egne anslag eller rapportens sjablonganslag. Skriv i stedet f.eks. "rapporten oppgir et grovt sjablonganslag – innhent tilbud fra fagfolk".
+D. KILDER: ved ETT dokument skrives kilde som "s. 7" (fra [Side N]-markørene) – aldri "Dok 1, s. 7". Dokumentnummer brukes kun når flere dokumenter faktisk er vedlagt.
+E. SPRÅK: korrekt norsk bokmål. Ingen markdown-tegn (**, #, nummererte lister) inne i tekstfeltene.`;

@@ -7,7 +7,7 @@ import { sjekkTilgang } from "@/lib/tilgang";
 
 // Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
 const ENGINE = process.env.ENGINE ?? "anthropic";
-import { SYSTEM_PROMPT } from "@/lib/prompt";
+import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
 import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -90,7 +90,11 @@ export async function POST(request: Request) {
                     : `Sidetall står som [Side N]-markører i teksten – bruk dem i "kilde" (f.eks. "s. 12").\n\n${tekster[0]}`) +
                 "\n\nForklar dette for meg som boligkjøper. Husk kilde på alt, oversett fagord, ingen presise kronebeløp.";
 
-            const { resultat, tokens } = await analyserMedOpenRouter(SYSTEM_PROMPT, bruker, rapportJsonSchema);
+            const { resultat, tokens } = await analyserMedOpenRouter(
+                SYSTEM_PROMPT + TEKSTMOTOR_REGLER, // skjerpede regler kun for tekstmotorer
+                bruker,
+                rapportJsonSchema
+            );
             console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut}`);
 
             const parsed = rapportSchema.safeParse(resultat);
