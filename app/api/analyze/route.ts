@@ -8,7 +8,7 @@ import { sjekkTilgang } from "@/lib/tilgang";
 // Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
 const ENGINE = process.env.ENGINE ?? "anthropic";
 import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
-import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
+import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -107,7 +107,11 @@ export async function POST(request: Request) {
                     { status: 502 }
                 );
             }
-            return NextResponse.json({ rapport: parsed.data, modell: `openrouter/${OPENROUTER_MODEL}` });
+            const normalisert = normaliserAlvorlighet(parsed.data);
+            if (normalisert.korrigert > 0) {
+                console.warn(`[openrouter] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG (modell: ${OPENROUTER_MODEL})`);
+            }
+            return NextResponse.json({ rapport: normalisert.rapport, modell: `openrouter/${OPENROUTER_MODEL}` });
         } catch (err) {
             console.error("[openrouter] analyse feilet:", err);
             return NextResponse.json(
@@ -193,7 +197,11 @@ export async function POST(request: Request) {
             );
         }
 
-        return NextResponse.json({ rapport: parsed.data, modell: MODEL });
+        const normalisert = normaliserAlvorlighet(parsed.data);
+        if (normalisert.korrigert > 0) {
+            console.warn(`[boligcopilot] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG`);
+        }
+        return NextResponse.json({ rapport: normalisert.rapport, modell: MODEL });
     } catch (err) {
         console.error("[boligcopilot] analyse feilet:", err);
         return NextResponse.json(

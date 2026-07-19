@@ -69,6 +69,25 @@ export const rapportSchema = z.object({
 export type Rapport = z.infer<typeof rapportSchema>;
 export type Risiko = z.infer<typeof risikoSchema>;
 
+/**
+ * Deterministisk kobling TG → alvorlighet: TG3=høy, TG2=middels, TG0/1=lav.
+ * Kjøres ETTER validering og overstyrer modellens egen vurdering – uansett motor.
+ * Bakgrunn (Nemotron mot Sandvika-fasiten): modeller nedgraderte ekte TG3 til
+ * "middels" og oppgraderte TG2 til "høy". Alvorligheten skal speile rapportens
+ * TG, ikke modellens mening. Kun forhold UTEN TG (null) beholder modellens skjønn.
+ */
+export function normaliserAlvorlighet(rapport: Rapport): { rapport: Rapport; korrigert: number } {
+    let korrigert = 0;
+    const risikoer = rapport.risikoer.map((r) => {
+        if (r.tg === null) return r;
+        const riktig: Risiko["alvorlighet"] = r.tg === 3 ? "høy" : r.tg === 2 ? "middels" : "lav";
+        if (r.alvorlighet === riktig) return r;
+        korrigert += 1;
+        return { ...r, alvorlighet: riktig };
+    });
+    return { rapport: { ...rapport, risikoer }, korrigert };
+}
+
 /** JSON Schema-speilet. Holdes manuelt i sync med rapportSchema over. */
 export const rapportJsonSchema = {
     type: "object" as const,
@@ -114,7 +133,7 @@ export const rapportJsonSchema = {
                         type: "string",
                         enum: ["høy", "middels", "lav"],
                         description:
-                            "Din vurdering av hvor alvorlig dette er for kjøper. TG3 er typisk 'høy', TG2 'middels'.",
+                            "Følger TG direkte: TG3='høy', TG2='middels', TG0/1='lav'. Bruk skjønn kun når rapporten ikke oppgir TG. (Normaliseres uansett i kode etterpå.)",
                     },
                     tg: {
                         type: ["integer", "null"],

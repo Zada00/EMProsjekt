@@ -32,7 +32,7 @@ try {
 const { analyserMedOpenRouter, OPENROUTER_MODEL } = await import("../lib/openrouter");
 const { pdfTilTekst } = await import("../lib/pdftext");
 const { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } = await import("../lib/prompt");
-const { rapportJsonSchema, rapportSchema } = await import("../lib/schema");
+const { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } = await import("../lib/schema");
 type Rapport = import("../lib/schema").Rapport;
 
 // ---- Fasit for referansetesten ----
@@ -89,15 +89,20 @@ function skaar(r: Rapport) {
 
   // Feilklassene fra Nemotron-testen:
   // 1) Hallusinert TG3: flere tg=3-funn enn fasit-rapporten faktisk har.
+  //    (Feil TG-verdi kan koden IKKE reparere – kun modellen vet hva den leste.)
   const hallusinertTg3 = r.risikoer.filter((x) => x.tg === 3).length > FASIT.maxTg3Funn;
-  // 2) TG3 nedgradert: et tg=3-funn med alvorlighet lavere enn "høy".
-  const nedgradertTg3 = r.risikoer.filter((x) => x.tg === 3 && x.alvorlighet !== "høy");
-  // 3) "Dok 1"-kilder ved ett dokument.
+  // 2) "Dok 1"-kilder ved ett dokument.
   const dokKilde = r.risikoer.some((x) => /dok\s*\d/i.test(x.kilde));
+
+  const fordeling = {
+    høy: r.risikoer.filter((x) => x.alvorlighet === "høy").length,
+    middels: r.risikoer.filter((x) => x.alvorlighet === "middels").length,
+    lav: r.risikoer.filter((x) => x.alvorlighet === "lav").length,
+  };
 
   return {
     funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
-    kroner: !!kroner, hallusinertTg3, nedgradertTg3: nedgradertTg3.length, dokKilde,
+    kroner: !!kroner, hallusinertTg3, dokKilde, fordeling,
   };
 }
 
@@ -125,10 +130,13 @@ for (const [i, modell] of modeller.entries()) {
       console.log(`skjemafeil etter ${sek}s`);
       continue;
     }
-    const s = skaar(parsed.data);
+    // Samme normalisering som produksjon (TG→alvorlighet). `korrigert` er
+    // kvalitetssignalet: hvor ofte modellen satte alvorlighet i strid med TG selv.
+    const { rapport, korrigert } = normaliserAlvorlighet(parsed.data);
+    const s = skaar(rapport);
     const tg3ok = s.funn.every((f) => f.funnet);
     const sideok = s.funn.every((f) => f.riktigSide);
-    const rene = !s.kroner && !s.hallusinertTg3 && s.nedgradertTg3 === 0 && !s.dokKilde;
+    const rene = !s.kroner && !s.hallusinertTg3 && !s.dokKilde;
     const status =
       tg3ok && sideok && s.antTg2 >= FASIT.minTg2 && rene ? "BESTÅTT"
       : tg3ok ? "DELVIS" : "STRØK";
@@ -137,10 +145,10 @@ for (const [i, modell] of modeller.entries()) {
       tokens: `${tokens.inn}/${tokens.ut}`,
       detaljer:
         s.funn.map((f) => `${f.navn}: ${f.funnet ? (f.riktigSide ? "✓" : `funnet, feil kilde (${f.kilde})`) : "IKKE FUNNET"}`).join(" | ") +
-        ` | TG2: ${s.antTg2} (krav ≥${FASIT.minTg2}) | risikoer totalt: ${s.antRisiko}` +
+        ` | TG2: ${s.antTg2} (krav ≥${FASIT.minTg2}) | fordeling h/m/l: ${s.fordeling.høy}/${s.fordeling.middels}/${s.fordeling.lav} av ${s.antRisiko}` +
+        (korrigert ? ` | ℹ ${korrigert} alvorlighet(er) korrigert av TG-normaliseringen` : "") +
         (s.kroner ? " | ⚠ kronebeløp (regelbrudd!)" : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
-        (s.nedgradertTg3 ? ` | ⚠ ${s.nedgradertTg3} TG3-funn nedgradert under 'høy'` : "") +
         (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : ""),
     });
     console.log(`${status} etter ${sek}s`);

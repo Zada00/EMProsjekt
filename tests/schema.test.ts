@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rapportSchema } from "../lib/schema";
+import { normaliserAlvorlighet, rapportSchema } from "../lib/schema";
 
 /**
  * Regresjonsvern for datakontrakten: normaliseringen som reddet oss i første
@@ -48,5 +48,23 @@ describe("skjema-normalisering", () => {
   it("avviser svar uten sammendrag", () => {
     const { sammendrag, ...uten } = gyldigBasis;
     expect(() => rapportSchema.parse(uten)).toThrow();
+  });
+
+  it("normaliserAlvorlighet: TG3→høy, TG2→middels, TG1→lav, null→urørt", () => {
+    // Nemotron-buggen: ekte TG3 satt til 'middels' og TG2 oppgradert til 'høy'.
+    const r = rapportSchema.parse({
+      ...gyldigBasis,
+      risikoer: [
+        { tittel: "brann", forklaring: "y", alvorlighet: "middels", tg: 3, kilde: "s. 8" },
+        { tittel: "membran", forklaring: "y", alvorlighet: "høy", tg: 2, kilde: "s. 6" },
+        { tittel: "overflate", forklaring: "y", alvorlighet: "middels", tg: 1, kilde: "s. 5" },
+        { tittel: "tegninger", forklaring: "y", alvorlighet: "lav", tg: null, kilde: "s. 9" },
+      ],
+    });
+    const { rapport, korrigert } = normaliserAlvorlighet(r);
+    expect(rapport.risikoer.map((x) => x.alvorlighet)).toEqual(["høy", "middels", "lav", "lav"]);
+    expect(korrigert).toBe(3);
+    // Originalen skal ikke muteres:
+    expect(r.risikoer[0].alvorlighet).toBe("middels");
   });
 });
