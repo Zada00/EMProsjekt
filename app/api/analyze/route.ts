@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { loggKostnad } from "@/lib/kostnad";
+import { analyserMedOpenRouter, OPENROUTER_MODEL } from "@/lib/openrouter";
+import { pdfTilTekst } from "@/lib/pdftext";
 import { sjekkTilgang } from "@/lib/tilgang";
+
+// Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
+const ENGINE = process.env.ENGINE ?? "anthropic";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
 
@@ -62,6 +67,53 @@ export async function POST(request: Request) {
         );
     }
 
+    // ===== OPENROUTER-GRENEN (testlab) =====
+    if (ENGINE === "openrouter") {
+        try {
+            const tekster = await Promise.all(
+                files.map(async (f) => pdfTilTekst(Buffer.from(await f.arrayBuffer())))
+            );
+            const tomme = tekster
+                .map((t, i) => ({ t, navn: files[i].name }))
+                .filter((x) => x.t.length < 200);
+            if (tomme.length) {
+                return NextResponse.json(
+                    { error: `"${tomme[0].navn}" ser ut til å være et rent bildeskann uten tekstlag. Bruk Claude-motoren (ENGINE=anthropic) for skannede dokumenter.` },
+                    { status: 422 }
+                );
+            }
+
+            const bruker =
+                (files.length > 1
+                    ? `Du får ${files.length} dokumenter for SAMME bolig, adskilt under. Kilde-format: "Dok N, s. X" der X hentes fra [Side X]-markørene.\n\n` +
+                      tekster.map((t, i) => `===== Dok ${i + 1}: ${files[i].name} =====\n${t}`).join("\n\n")
+                    : `Sidetall står som [Side N]-markører i teksten – bruk dem i "kilde" (f.eks. "s. 12").\n\n${tekster[0]}`) +
+                "\n\nForklar dette for meg som boligkjøper. Husk kilde på alt, oversett fagord, ingen presise kronebeløp.";
+
+            const { resultat, tokens } = await analyserMedOpenRouter(SYSTEM_PROMPT, bruker, rapportJsonSchema);
+            console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut}`);
+
+            const parsed = rapportSchema.safeParse(resultat);
+            if (!parsed.success) {
+                console.error("[openrouter] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
+                const første = parsed.error.issues[0];
+                const hvor = første?.path?.join(".") || "ukjent felt";
+                return NextResponse.json(
+                    { error: `Resultatet fra ${OPENROUTER_MODEL} besto ikke valideringen (felt: ${hvor}). Detaljer i serverloggen.` },
+                    { status: 502 }
+                );
+            }
+            return NextResponse.json({ rapport: parsed.data, modell: `openrouter/${OPENROUTER_MODEL}` });
+        } catch (err) {
+            console.error("[openrouter] analyse feilet:", err);
+            return NextResponse.json(
+                { error: err instanceof Error ? err.message : "OpenRouter-analysen feilet." },
+                { status: 500 }
+            );
+        }
+    }
+
+    // ===== ANTHROPIC-GRENEN (standard) =====
     const dokumentBlokker = await Promise.all(
         files.map(async (f) => ({
             type: "document" as const,
@@ -114,7 +166,7 @@ export async function POST(request: Request) {
 
         loggKostnad(tilgang.kode, files.map((f) => f.name).join(", "), message.usage);
 
-        const toolUse = message.content.find((b) => b.type === "tool_use");
+    const toolUse = message.content.find((b) => b.type === "tool_use");
         if (!toolUse || toolUse.type !== "tool_use") {
             return NextResponse.json(
                 { error: "Modellen svarte uten strukturert resultat. Prøv igjen." },
