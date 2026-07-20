@@ -2,10 +2,10 @@
  * Testlab: mål OpenRouter-modeller mot Sandvika-fasiten uten å gå via appen.
  *
  * Kjør fra prosjektroten (leser .env.local selv):
- *   npx tsx scripts/testlab.ts <sti-til-pdf> [modell1 modell2 ...]
+ *   npx tsx scripts/testlab.mts <sti-til-pdf> [modell1 modell2 ...]
  *
  * Eksempel:
- *   npx tsx scripts/testlab.ts "C:\Users\drago\Downloads\boligsalgsrapport-1108.pdf" ^
+ *   npx tsx scripts/testlab.mts "C:\Users\drago\Downloads\boligsalgsrapport-1108.pdf" ^
  *     nvidia/nemotron-3-ultra-550b-a55b:free openai/gpt-oss-120b:free
  *
  * Uten modellargumenter brukes OPENROUTER_MODEL fra .env.local.
@@ -71,7 +71,7 @@ const nArg = alleArgs.find((a) => a.startsWith("--n="));
 const antKjoringer = Math.max(1, Number(nArg?.split("=")[1] ?? 1) || 1);
 const [pdfSti, ...modellArgs] = alleArgs.filter((a) => !a.startsWith("--"));
 if (!pdfSti) {
-  console.error("Bruk: npx tsx scripts/testlab.ts <sti-til-pdf> [--n=3] [modell1 modell2 ...]");
+  console.error("Bruk: npx tsx scripts/testlab.mts <sti-til-pdf> [--n=3] [modell1 modell2 ...]");
   process.exit(1);
 }
 const modeller = modellArgs.length ? modellArgs : [OPENROUTER_MODEL];
