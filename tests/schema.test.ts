@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { erEnige, velgBeste } from "../lib/konsensus";
 import { normaliserAlvorlighet, rapportSchema } from "../lib/schema";
 
 /**
@@ -66,5 +67,55 @@ describe("skjema-normalisering", () => {
     expect(korrigert).toBe(3);
     // Originalen skal ikke muteres:
     expect(r.risikoer[0].alvorlighet).toBe("middels");
+  });
+});
+
+describe("to-kjørings-konsensus", () => {
+  // Scenarioene er hentet fra den faktiske --n=3-kjøringen mot Sandvika-rapporten.
+  const risiko = (tittel: string, tg: number | null, alvorlighet = "middels") =>
+    ({ tittel, forklaring: tittel, alvorlighet, tg, kilde: "s. 1" });
+  const rapport = (risikoer: object[]) =>
+    rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer, sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+    });
+
+  const fulle = [
+    risiko("Fukt og svertesopp i bod", 3, "høy"),
+    risiko("Manglende røykvarslere", 3, "høy"),
+    risiko("Manglende brannslokkingsutstyr", 3, "høy"),
+    risiko("Vannrør fra byggeåret", 2), risiko("Membran og tettesjikt bad", 2),
+    risiko("Komfyrvakt mangler", 2), risiko("Skjevheter i gulv", 2),
+    risiko("Elektrisk anlegg ikke undersøkt", 2), risiko("Balkongrekkverk for lavt", 2),
+  ];
+
+  it("enige: samme TG3-bilde selv når brann er slått sammen til ett funn", () => {
+    const a = rapport(fulle);
+    const b = rapport([
+      risiko("Fukt i indre bod", 3, "høy"),
+      risiko("Mangler røykvarslere og brannslokkingsutstyr", 3, "høy"), // sammenslått
+      risiko("Vannrør", 2), risiko("Membran bad", 2), risiko("Komfyrvakt", 2),
+      risiko("Skjevheter", 2), risiko("Sikringsskap ikke besiktiget", 2),
+    ]);
+    expect(erEnige(a, b)).toBe(true);
+    expect(velgBeste(a, b)).toBe(a); // flest funn vinner
+  });
+
+  it("uenige: kollaps-kjøringen som mistet begge TG3-funnene", () => {
+    const kollaps = rapport([
+      risiko("Vannrør fra byggeåret", 2), risiko("Membran bad", 2),
+      risiko("Vinduer fra byggeåret", 2), risiko("Balkongrekkverk", 2),
+    ]);
+    expect(erEnige(rapport(fulle), kollaps)).toBe(false);
+  });
+
+  it("uenige: dekningskollaps selv om TG3-funnene matcher", () => {
+    const tynn = rapport([
+      risiko("Fukt i bod", 3, "høy"),
+      risiko("Røykvarslere og brannslokkingsutstyr mangler", 3, "høy"),
+      risiko("Vannrør", 2),
+    ]);
+    expect(erEnige(rapport(fulle), tynn)).toBe(false); // 3 av 9 funn er under 60 %
   });
 });

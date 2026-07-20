@@ -8,7 +8,8 @@ import { sjekkTilgang } from "@/lib/tilgang";
 // Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
 const ENGINE = process.env.ENGINE ?? "anthropic";
 import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
-import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } from "@/lib/schema";
+import { erEnige, velgBeste } from "@/lib/konsensus";
+import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema, type Rapport } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -90,24 +91,59 @@ export async function POST(request: Request) {
                     : `Sidetall står som [Side N]-markører i teksten – bruk dem i "kilde" (f.eks. "s. 12").\n\n${tekster[0]}`) +
                 "\n\nForklar dette for meg som boligkjøper. Husk kilde på alt, oversett fagord, ingen presise kronebeløp.";
 
-            const { resultat, tokens } = await analyserMedOpenRouter(
-                SYSTEM_PROMPT + TEKSTMOTOR_REGLER, // skjerpede regler kun for tekstmotorer
-                bruker,
-                rapportJsonSchema
-            );
-            console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut}`);
+            // TO-KJØRINGS-KONSENSUS: gratismodeller kollapser av og til (mister
+            // TG3-funn). To uavhengige kjøringer må være enige om TG3-bildet og
+            // dekningen; spriker de, avgjør en tredje. Ingen Claude-fallback.
+            const kjørEn = async (): Promise<Rapport | null> => {
+                try {
+                    const { resultat, tokens } = await analyserMedOpenRouter(
+                        SYSTEM_PROMPT + TEKSTMOTOR_REGLER,
+                        bruker,
+                        rapportJsonSchema
+                    );
+                    console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut}`);
+                    const parsed = rapportSchema.safeParse(resultat);
+                    if (!parsed.success) {
+                        console.error("[openrouter] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
+                        return null;
+                    }
+                    return parsed.data;
+                } catch (err) {
+                    console.error("[openrouter] kjøring feilet:", err);
+                    return null;
+                }
+            };
 
-            const parsed = rapportSchema.safeParse(resultat);
-            if (!parsed.success) {
-                console.error("[openrouter] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
-                const første = parsed.error.issues[0];
-                const hvor = første?.path?.join(".") || "ukjent felt";
+            const gyldige = (await Promise.all([kjørEn(), kjørEn()])).filter(
+                (r): r is Rapport => r !== null
+            );
+
+            let leveranse: Rapport | null = null;
+            let antallKall = 2;
+            if (gyldige.length === 2 && erEnige(gyldige[0], gyldige[1])) {
+                leveranse = velgBeste(gyldige[0], gyldige[1]);
+            } else {
+                // Sprik eller frafall: tredje kjøring som dommer.
+                antallKall = 3;
+                const dommer = await kjørEn();
+                if (dommer) {
+                    // Leveres KUN hvis to kjøringer er enige – én uverifisert
+                    // kjøring alene er nettopp det konsensusen skal beskytte mot.
+                    const enig = gyldige.find((g) => erEnige(g, dommer));
+                    leveranse = enig ? velgBeste(enig, dommer) : null;
+                }
+            }
+
+            if (!leveranse) {
+                console.error(`[openrouter] konsensus feilet etter ${antallKall} kall (modell: ${OPENROUTER_MODEL})`);
                 return NextResponse.json(
-                    { error: `Resultatet fra ${OPENROUTER_MODEL} besto ikke valideringen (felt: ${hvor}). Detaljer i serverloggen.` },
+                    { error: `Analysene fra ${OPENROUTER_MODEL} spriker for mye til å være pålitelige. Prøv igjen – eller bytt modell.` },
                     { status: 502 }
                 );
             }
-            const normalisert = normaliserAlvorlighet(parsed.data);
+
+            console.log(`[openrouter] konsensus OK etter ${antallKall} kall`);
+            const normalisert = normaliserAlvorlighet(leveranse);
             if (normalisert.korrigert > 0) {
                 console.warn(`[openrouter] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG (modell: ${OPENROUTER_MODEL})`);
             }
