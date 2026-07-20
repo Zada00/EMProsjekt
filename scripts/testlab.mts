@@ -90,9 +90,9 @@ console.log(`PDF: ${pdfSti} (${tekst.length} tegn tekst)\nModeller: ${modeller.j
 mkdirSync("testlab-resultater", { recursive: true });
 
 // ---- Skåring ----
-function sideAv(kilde: string): number | null {
-  const m = kilde.match(/\d+/);
-  return m ? Number(m[0]) : null;
+function siderAv(kilde: string): number[] {
+  // "s. 4, s. 7" er to gyldige henvisninger – godta treff på HVILKEN SOM HELST av dem.
+  return (kilde.match(/\d+/g) ?? []).map(Number);
 }
 /**
  * Kronebeløp-vakt v2 (etter policyendring): rapportens egne sjablonganslag er
@@ -125,7 +125,7 @@ function skaar(r: Rapport, kildetekst: string) {
     return {
       navn: f.navn,
       funnet: !!treff,
-      riktigSide: !!treff && sideAv(treff.kilde) === f.side,
+      riktigSide: !!treff && siderAv(treff.kilde).includes(f.side),
       kilde: treff?.kilde ?? "-",
     };
   });
