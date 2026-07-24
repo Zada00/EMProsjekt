@@ -29,18 +29,38 @@ Husk: dette skal hjelpe en kjøper å forstå og stille gode spørsmål – ikke
 /**
  * Skjerpede regler som KUN sendes til tekstmotorene (OpenRouter/Ollama).
  * Claude følger dette av seg selv; mindre modeller trenger det eksplisitt.
- * Lærdom fra Nemotron-testen mot Sandvika-fasiten: hallusinert TG3 på badet
- * (rapporten sa TG2), ekte TG3 nedgradert til "middels", oppdiktede kronebeløp
- * ("150 000–400 000 kr"), "Dok 1"-kilder ved ett dokument, og markdown i tekstfelt.
  * Holdes ADSKILT fra SYSTEM_PROMPT så Claude-fasiten ikke perturberes.
+ *
+ * HVER regel er skrevet mot en feil vi faktisk har målt i testlab-en – ikke
+ * spekulasjon. Legg aldri til en regel uten et observert feiltilfelle bak;
+ * hver ekstra instruks fortynner de andre.
+ *   Arbeidsrekkefølgen – kollapskjøringer (1 av 3) som mistet begge TG3-funnene
+ *   A – hallusinert TG3 på badet (rapporten sa TG2)
+ *   B – ekte TG3 nedgradert til "middels"
+ *   C – oppdiktede beløp ("150 000–400 000 kr")
+ *   D – "Dok 1"-kilder ved ett vedlagt dokument
+ *   E – "oppdragelse", "reppes", "known", markdown og punktliste i sammendrag
+ *   F – manglende dekning av tabellrader (komfyrvakt forsvant)
+ *   G – bodens sjablonganslag feilkoblet til badet
+ *   H – TGIU-forhold (tak, stakeluke) presentert som avvik med gjettet TG
+ *   I – "selveierleilighet i borettslag" (rapporten sier sameie)
  */
 export const TEKSTMOTOR_REGLER = `
+
+SLIK JOBBER DU (følg rekkefølgen – ikke begynn å skrive før du har gjort steg 1 og 2):
+Steg 1: Finn oppsummeringstabellen over avvik (ofte tidlig i rapporten, med TG-status per kontrollpunkt). Noter hver rad: element, kontrollpunkt, TG, sidetall, eventuelt prisanslag.
+Steg 2: Les detaljsidene og finn utfyllende beskrivelse for hver rad, pluss TG2/TG3-forhold som ikke står i tabellen.
+Steg 3: Skriv ett funn per sak fra listen din – ikke hopp over noen, og ikke legg til forhold som ikke finnes i rapporten.
+Steg 4: Kontroller før levering: er alle radene fra steg 1 dekket? Har hvert funn riktig TG og kilde? Er alle beløp hentet ordrett fra dokumentet?
+Hold deg til denne rekkefølgen selv om rapporten er lang. Et kort, ufullstendig svar er en alvorlig feil – kjøperen mister da informasjon om boligen han skal bruke millioner på.
 
 SKJERPEDE REGLER – brudd på én av disse gjør hele svaret ubrukelig:
 A. TILSTANDSGRAD: "tg"-feltet skal KUN gjengi tilstandsgraden som står ORDRETT i rapporten for akkurat det forholdet. Du skal ALDRI sette, gjette eller "oppjustere" en TG selv. Står det ingen TG ved forholdet: bruk null. Skriv aldri "TG3" i tittel eller forklaring om rapporten sier TG2.
 B. ALVORLIGHET: følger tilstandsgraden direkte – TG3 er "høy", TG2 er "middels", TG0/TG1 er "lav". Kun for forhold UTEN oppgitt TG (f.eks. manglende dokumentasjon, informasjonsnotater) bruker du skjønn.
 C. KRONEBELØP: kun beløp som står ORDRETT i dokumentet kan gjengis (f.eks. "rapportens sjablonganslag: kr 10 000–50 000"), alltid merket som rapportens anslag og med kilde. Alle andre tall er strengt forbudt – du skal aldri anslå kostnader selv.
 D. KILDER: ved ETT dokument skrives kilde som "s. 7" (fra [Side N]-markørene) – aldri "Dok 1, s. 7". Dokumentnummer brukes kun når flere dokumenter faktisk er vedlagt.
-E. SPRÅK: korrekt norsk bokmål. Ingen markdown-tegn (**, #, nummererte lister) inne i tekstfeltene.
+E. SPRÅK: korrekt norsk bokmål, og bruk fagordene riktig. Vanlige feil å unngå: det heter "overtakelse" (ikke "oppdragelse"), "repareres" (ikke "reppes"), "rørfornying" eller "utskifting av rør" (ikke "omrøring"), "besiktiget" (ikke "besiktitet"), "jordfeilbryter" (ikke "feilviker"). Skriv norsk hele veien – ingen engelske ord som "known". Ingen markdown-tegn (**, #, bindestrek-lister) inne i tekstfeltene. "sammendrag" skal være 3–6 hele setninger i sammenhengende prosa – ikke en punktliste.
 F. FULLSTENDIGHET: tilstandsrapporter har som regel en oppsummeringstabell over avvik med TG-status per kontrollpunkt (ofte tidlig i rapporten). Bruk den som SJEKKLISTE: hvert eneste TG2- og TG3-punkt i tabellen skal ha et tilsvarende funn i "risikoer". Du kan slå sammen rader som gjelder samme sak (f.eks. vannrør i flere rom), men ingen rad skal mangle. Gå deretter gjennom detaljsidene og ta med TG2/TG3-forhold som ikke står i tabellen. Før du leverer: tell etter at alle tabellradene er dekket.
-G. BELØPSKOBLING: et sjablongmessig prisanslag gjelder KUN det kontrollpunktet det står ved i rapporten (samme rad eller avsnitt). Du skal aldri knytte et beløp til et annet forhold, og aldri anta at det "også dekker" noe annet. Er du usikker på hvilket forhold et beløp tilhører: utelat beløpet.`;
+G. BELØPSKOBLING: et sjablongmessig prisanslag gjelder KUN det kontrollpunktet det står ved i rapporten (samme rad eller avsnitt). Du skal aldri knytte et beløp til et annet forhold, og aldri anta at det "også dekker" noe annet. Er du usikker på hvilket forhold et beløp tilhører: utelat beløpet.
+H. IKKE UNDERSØKT (TGIU): forhold takstmannen ikke fikk undersøkt – f.eks. tak som ikke er besiktiget, sikringsskap uten nøkkel, stakeluke som ikke er lokalisert – er IKKE avvik og skal ikke stå i "risikoer" med oppdiktet TG. De hører hjemme i "ikke_funnet", formulert som hva som ikke ble vurdert og hvorfor. Unntak: har kontrollpunktet også fått en TG i tabellen (f.eks. elektrisk anlegg med TG2 fordi skapet ikke kunne åpnes), er det et vanlig funn med den TG-en.
+I. FAKTAOPPLYSNINGER: boligtype, byggeår, areal og eierform skal gjengis nøyaktig slik de står. Sameie og borettslag er to forskjellige eierformer – bland dem aldri, og ikke skriv "selveierleilighet i borettslag" hvis rapporten sier sameie. Er en opplysning ikke oppgitt, bruk null i stedet for å gjette.`;
