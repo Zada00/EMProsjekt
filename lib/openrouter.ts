@@ -104,20 +104,23 @@ async function kall(
       temperature: 0,
       seed: 42, // reduserer kjøring-til-kjøring-variasjon der leverandøren støtter det
       /**
-       * KRITISK: skru AV context compression.
+       * Skru AV context compression. OpenRouter bruker den som standard på
+       * endepunkter med ≤8k kontekst, og den fjerner innhold FRA MIDTEN av
+       * prompten. Vi vil aldri ha stille komprimering av en tilstandsrapport –
+       * heller en tydelig feil enn en amputert analyse av boligen noen kjøper.
        *
-       * OpenRouter bruker den som standard på endepunkter med ≤8k kontekst, og
-       * den fjerner innhold FRA MIDTEN av prompten. Med en rapport på ~11k tokens
-       * betyr det at midtsidene forsvinner uten noe varsel – modellen får s. 1–2
-       * og 8–11, analyserer det den fikk, og leverer et svar som ser komplett ut.
+       * NB: dette var IKKE årsaken til de ufullstendige analysene (se under).
+       * Innstillingen står fordi den er riktig i seg selv, ikke som en fiks.
        *
-       * Målt 25.07.2026: 4 av 10 kjøringer mot samme rapport manglet s. 3–7.
-       * Fordelingen var bimodal (13–16 funn eller 5–7), fordi OpenRouter ruter
-       * mellom ulike leverandør-endepunkter for samme modell.
-       *
-       * Med denne av feiler slike forespørsler i stedet med en tydelig feil.
-       * For dette produktet er en ærlig feilmelding uendelig mye bedre enn en
-       * stille amputert analyse av boligen noen skal kjøpe.
+       * MÅLT 25.07.2026 – "lost in the middle", ikke transport:
+       * 9 av 20 kjøringer mot samme rapport analyserte kun s. 1–2 og 8–11, og
+       * påsto i sammendraget at s. 3–7 "mangler". Men:
+       *   – input-tokens var identisk (12 364) i alle kjøringer, også de gode
+       *   – leverandøren var Nvidia i samtlige, ingen ruting-variasjon
+       *   – pdfTilTekst leverer alle 11 sider (s. 3: 2076 tegn, s. 6: 3459 tegn)
+       * Modellen FÅR altså hele dokumentet og mister midten under lesing – så
+       * konfabulerer den en forklaring på hvorfor analysen er kort.
+       * Dette er modellens tak ved ~12k tokens, og kan ikke fikses i prompt.
        */
       plugins: [{ id: "context-compression", enabled: false }],
 
