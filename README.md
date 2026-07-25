@@ -86,6 +86,10 @@ er høy risiko og liten kostnad, og skal vises som begge deler.
 (takstmannens sjablonganslag) kan gjengis, merket som rapportens anslag og med kilde. Alt annet
 er grov skala (liten/middels/stor/ukjent).
 
+**Prompt-injection:** opplastede PDF-er er upålitelig input – en selger eller megler har direkte
+økonomisk motiv for å skjule avvik. `SYSTEM_PROMPT` slår derfor fast at dokumentinnhold er data
+og aldri instruksjoner, og at forsøk på å styre analysen skal rapporteres i `dokument_advarsel`.
+
 ---
 
 ## Motorbryter og OpenRouter-testlab (eksperiment-branch)
@@ -105,10 +109,19 @@ trening – aldri ekte kundedata. Kvoten er ca. 50 kall/dag.
 Tekstmodeller leser ikke PDF direkte, så `lib/pdftext.ts` trekker ut tekst med `[Side N]`-markører
 (kildehenvisningene overlever motorbyttet). Rene bildeskann avvises med tydelig melding.
 `lib/prompt.ts` har et eget tillegg, `TEKSTMOTOR_REGLER`, som **kun** sendes til tekstmotorene –
-Claude-fasiten holdes uperturbert. Reglene A–G er skrevet mot observerte feil: TG gjengis ordrett,
+Claude-fasiten holdes uperturbert. Reglene A–I er skrevet mot observerte feil: TG gjengis ordrett,
 alvorlighet følger TG, kun kildeverifiserte beløp, riktig kildeformat, norsk uten markdown,
-rapportens oppsummeringstabell som fullstendighets-sjekkliste, og beløp koblet kun til sitt eget
-kontrollpunkt.
+rapportens oppsummeringstabell som fullstendighets-sjekkliste, beløp koblet kun til sitt eget
+kontrollpunkt, TGIU-forhold til `ikke_funnet`, og faktaopplysninger gjengitt ordrett.
+
+**Merk om tabellen:** statuskolonnen i oppsummeringstabellen er fargede ikoner, ikke tekst. Den
+følger *ikke* med i `pdfTilTekst`-uttrekket, så tekstmotorene må hente hver TG fra detaljsidene.
+Claude ser ikonene via native PDF-lesing. Dette er dokumentert i arbeidsrekkefølgen i prompten,
+og er verdt å huske hvis noen senere vurderer å parse tabellen maskinelt.
+
+**Prompt-versjonering:** `PROMPT_VERSJON` i `lib/prompt.ts` stemples på hver kostnadslogg og hvert
+testlab-resultat. Bump den ved enhver endring i prompt-tekstene – ellers blir gamle målinger
+sammenlignet med nye uten at noen oppdager det.
 
 ### To-kjørings-konsensus
 

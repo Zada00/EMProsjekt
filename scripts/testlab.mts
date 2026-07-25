@@ -31,7 +31,7 @@ try {
 // Importeres FØRST NÅ, etter at env er lastet (modulene leser env ved import).
 const { analyserMedOpenRouter, OPENROUTER_MODEL } = await import("../lib/openrouter");
 const { pdfTilTekst } = await import("../lib/pdftext");
-const { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } = await import("../lib/prompt");
+const { SYSTEM_PROMPT, TEKSTMOTOR_REGLER, PROMPT_VERSJON } = await import("../lib/prompt");
 const { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } = await import("../lib/schema");
 type Rapport = import("../lib/schema").Rapport;
 
@@ -85,7 +85,9 @@ if (tekst.length < 200) {
 const bruker =
   `Sidetall står som [Side N]-markører i teksten – bruk dem i "kilde" (f.eks. "s. 12").\n\n${tekst}` +
   "\n\nForklar dette for meg som boligkjøper. Husk kilde på alt, oversett fagord, ingen presise kronebeløp.";
-console.log(`PDF: ${pdfSti} (${tekst.length} tegn tekst)\nModeller: ${modeller.join(", ")}\n`);
+console.log(
+  `PDF: ${pdfSti} (${tekst.length} tegn tekst)\nPrompt: ${PROMPT_VERSJON}\nModeller: ${modeller.join(", ")}\n`
+);
 
 mkdirSync("testlab-resultater", { recursive: true });
 
@@ -177,7 +179,12 @@ for (const modell of modeller) {
       "testlab-resultater",
       modell.replace(/[^a-z0-9.-]+/gi, "_") + (antKjoringer > 1 ? `_${k}` : "") + ".json"
     );
-    writeFileSync(fil, JSON.stringify(resultat, null, 2));
+    // Versjonsstempel i selve resultatfilen – ellers er gamle kjøringer
+    // ikke sammenlignbare med nye etter en promptendring.
+    writeFileSync(
+      fil,
+      JSON.stringify({ _prompt: PROMPT_VERSJON, _modell: modell, _tid: new Date().toISOString(), resultat }, null, 2)
+    );
 
     const parsed = rapportSchema.safeParse(resultat);
     if (!parsed.success) {
@@ -233,7 +240,7 @@ for (const modell of modeller) {
 }
 
 // ---- Oppsummering ----
-console.log("\n══════ RESULTAT (fasit: 2× TG3 – fukt i bod s.7, brann s.8 – + TG2-er) ══════");
+console.log(`\n══════ RESULTAT (prompt ${PROMPT_VERSJON} | fasit: 2× TG3 – fukt i bod s.7, brann s.8 – + TG2-er) ══════`);
 for (const r of rader) {
   console.log(`\n${r.status.padEnd(14)} ${r.modell}  ${r.sek ?? "?"}s  tokens inn/ut: ${r.tokens ?? "-"}`);
   console.log(`  ${r.detaljer}`);

@@ -6,6 +6,8 @@
  * Priser for claude-sonnet-4-6 (USD per million tokens). Oppdater ved modellbytte.
  */
 
+import { PROMPT_VERSJON } from "./prompt";
+
 const PRIS_INPUT_USD = 3;
 const PRIS_OUTPUT_USD = 15;
 const USD_TIL_NOK = Number(process.env.USD_NOK ?? 10.5);
@@ -28,6 +30,6 @@ export function loggKostnad(
   dagsSum.antall += 1;
 
   console.log(
-    `[kostnad] kode=${kode} fil="${filnavn}" in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
+    `[kostnad] kode=${kode} prompt=${PROMPT_VERSJON} fil="${filnavn}" in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
   );
 }
