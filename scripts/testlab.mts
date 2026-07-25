@@ -14,7 +14,7 @@
  * Fasit (Sandvika-rapporten, kan justeres i FASIT under):
  *   2× TG3 – fukt i bod (s. 7) og brannsikkerhet (s. 8) – pluss flere TG2.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 // ---- .env.local (dotenv er ikke installert – enkel parser holder) ----
@@ -206,16 +206,22 @@ for (const modell of modeller) {
   førsteKall = false;
   process.stdout.write(`▶ ${navn} ... `);
   const t0 = Date.now();
+
+  // Slett et eventuelt gammelt resultat for dette løpenummeret FØR kallet.
+  // Ellers overlever filen fra forrige batch en feilet kjøring, og blir
+  // talt som om den var ny (skjedde 25.07: kjøring 5 var 36 minutter gammel).
+  const filnavn = join(
+    "testlab-resultater",
+    modell.replace(/[^a-z0-9.-]+/gi, "_") + (antKjoringer > 1 ? `_${k}` : "") + ".json"
+  );
+  rmSync(filnavn, { force: true });
   try {
     const { resultat, tokens, leverandor } = await analyserMedOpenRouter(
       SYSTEM_PROMPT + TEKSTMOTOR_REGLER, // samme prompt som route.ts sin OpenRouter-gren
       bruker, rapportJsonSchema, modell
     );
     const sek = Math.round((Date.now() - t0) / 1000);
-    const fil = join(
-      "testlab-resultater",
-      modell.replace(/[^a-z0-9.-]+/gi, "_") + (antKjoringer > 1 ? `_${k}` : "") + ".json"
-    );
+    const fil = filnavn;
     // Versjonsstempel i selve resultatfilen – ellers er gamle kjøringer
     // ikke sammenlignbare med nye etter en promptendring.
     writeFileSync(
@@ -262,20 +268,42 @@ for (const modell of modeller) {
     console.log(`${status} etter ${sek}s`);
   } catch (err) {
     const sek = Math.round((Date.now() - t0) / 1000);
+    const melding = err instanceof Error ? err.message : String(err);
     statuser.push("FEILET");
-    rader.push({ modell: navn, status: "FEILET", detaljer: err instanceof Error ? err.message : String(err), sek });
-    console.log(`feilet etter ${sek}s`);
+    rader.push({ modell: navn, status: "FEILET", detaljer: melding, sek });
+    // Skriv årsaken MED EN GANG. Ved lange batcher er det ubrukelig å vente
+    // til sluttoppsummeringen for å oppdage at kvoten tok slutt på kall 3.
+    console.log(`feilet etter ${sek}s – ${melding}`);
+
+    // Tre feil på rad = noe systemisk (kvote, nøkkel, modell borte).
+    // Ikke brenn gjennom resten av batchen; avbryt og rapporter det vi har.
+    if (statuser.slice(-3).every((s) => s === "FEILET") && statuser.length >= 3) {
+      console.log(`\n⛔ Tre feil på rad – avbryter batchen for ${modell}. Fullførte ${statuser.filter((s) => s !== "FEILET").length} av ${antKjoringer} kjøringer.`);
+      break;
+    }
   }
   } // kjøringer
 
   // Stabilitet på tvers av kjøringene: konklusjonen skal ikke flakke.
   if (antKjoringer > 1) {
     const stabil = new Set(statuser).size === 1;
+    const tell = (s: string) => statuser.filter((x) => x === s).length;
+    const n = statuser.length;
+    const bestatt = tell("BESTÅTT");
+    const strok = tell("STRØK");
+    const feilet = tell("FEILET") + tell("UGYLDIG SKJEMA");
+    // Wilson-intervall for strykraten – ved store n er dette tallet som betyr noe.
+    const p = n ? strok / n : 0;
+    const z = 1.96, senter = (p + z * z / (2 * n)) / (1 + z * z / n);
+    const margin = (z / (1 + z * z / n)) * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+    const pst = (x: number) => `${Math.round(x * 100)} %`;
     rader.push({
-      modell: `${modell} – STABILITET`,
+      modell: `${modell} – OPPSUMMERING (n=${n})`,
       status: stabil ? "STABIL" : "USTABIL",
-      detaljer: `statuser: [${statuser.join(", ")}]` +
-        (stabil ? "" : " – konklusjonen flakker mellom kjøringer; ikke pilotklar uansett enkeltresultat"),
+      detaljer:
+        `BESTÅTT ${bestatt} | DELVIS ${tell("DELVIS")} | STRØK ${strok} | FEILET/UGYLDIG ${feilet}\n` +
+        `  strykrate ${pst(p)} (95 % KI: ${pst(Math.max(0, senter - margin))}–${pst(Math.min(1, senter + margin))})\n` +
+        `  statuser: [${statuser.join(", ")}]`,
     });
   }
 }
