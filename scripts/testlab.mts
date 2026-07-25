@@ -61,6 +61,38 @@ const FASIT = {
     { navn: "Vinduer (alder/fastsittende)", ord: /vindu/i },
     { navn: "Balkongrekkverk", ord: /rekkverk|balkong/i },
   ],
+
+  /**
+   * KJENTE BLINDSONER – måles og rapporteres, men senker ikke status.
+   * Dette er feil vi har observert reproduserbart, også hos Claude (fasiten).
+   * De står her for at en fremtidig promptendring skal kunne VISE at den
+   * fikset dem – eller at den ikke gjorde det.
+   */
+  blindsoner: [
+    {
+      navn: "Hull i veggplate skal ha TG2",
+      // Rapporten s. 7: Toalettrom → TG 2 → "Overflater vegger: Hull i veggplate mot stue."
+      // Claude leste den som "informasjonspunkt uten TG" i 3 av 3 kjøringer (v3, 25.07)
+      // – TG 2-overskriften dekker to kontrollpunkter, og graden knyttes til vannrørene.
+      test: (r: Rapport) => {
+        const funn = r.risikoer.find((x) => /hull i vegg/i.test(x.tittel + " " + x.forklaring));
+        if (!funn) return null; // ikke nevnt i det hele tatt – ikke en blindsone-treff
+        return funn.tg === 2 ? null : `hull i veggplate har tg=${funn.tg} (rapporten sier TG2)`;
+      },
+    },
+    {
+      navn: "TGIU hører kun i ikke_funnet",
+      // Skjemabeskrivelsen sier TGIU → ikke_funnet. Claude analyse 3 (v3, 25.07) la
+      // stakeluke BÅDE i risikoer og ikke_funnet. 2 av 3 kjøringer var korrekte.
+      test: (r: Rapport) => {
+        const feil = r.risikoer.filter((x) =>
+          /stakeluke|tgiu|ikke besiktiget|ikke undersøkt/i.test(x.tittel + " " + x.forklaring) &&
+          x.tg === null
+        );
+        return feil.length ? `TGIU-forhold i risikoer: ${feil.map((f) => f.tittel).join(", ")}` : null;
+      },
+    },
+  ],
 };
 
 // ---- Argumenter ----
@@ -150,9 +182,14 @@ function skaar(r: Rapport, kildetekst: string) {
   const altTekst = r.risikoer.map((x) => `${x.tittel} ${x.forklaring}`).join("\n");
   const mangler = FASIT.dekning.filter((d) => !d.ord.test(altTekst)).map((d) => d.navn);
 
+  // Kjente blindsoner: rapporteres, men påvirker ikke status.
+  const blindsoner = FASIT.blindsoner
+    .map((b) => b.test(r))
+    .filter((x): x is string => x !== null);
+
   return {
     funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
-    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling, mangler,
+    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling, mangler, blindsoner,
   };
 }
 
@@ -170,7 +207,7 @@ for (const modell of modeller) {
   process.stdout.write(`▶ ${navn} ... `);
   const t0 = Date.now();
   try {
-    const { resultat, tokens } = await analyserMedOpenRouter(
+    const { resultat, tokens, leverandor } = await analyserMedOpenRouter(
       SYSTEM_PROMPT + TEKSTMOTOR_REGLER, // samme prompt som route.ts sin OpenRouter-gren
       bruker, rapportJsonSchema, modell
     );
@@ -183,7 +220,10 @@ for (const modell of modeller) {
     // ikke sammenlignbare med nye etter en promptendring.
     writeFileSync(
       fil,
-      JSON.stringify({ _prompt: PROMPT_VERSJON, _modell: modell, _tid: new Date().toISOString(), resultat }, null, 2)
+      JSON.stringify(
+        { _prompt: PROMPT_VERSJON, _modell: modell, _leverandor: leverandor, _tokens: tokens, _tid: new Date().toISOString(), resultat },
+        null, 2
+      )
     );
 
     const parsed = rapportSchema.safeParse(resultat);
@@ -207,7 +247,7 @@ for (const modell of modeller) {
     statuser.push(status);
     rader.push({
       modell: navn, status, sek,
-      tokens: `${tokens.inn}/${tokens.ut}`,
+      tokens: `${tokens.inn}/${tokens.ut} (${leverandor})`,
       detaljer:
         s.funn.map((f) => `${f.navn}: ${f.funnet ? (f.riktigSide ? "✓" : `funnet, feil kilde (${f.kilde})`) : "IKKE FUNNET"}`).join(" | ") +
         ` | dekning: ${FASIT.dekning.length - s.mangler.length}/${FASIT.dekning.length} sakskomplekser fra s. 4-tabellen` +
@@ -216,7 +256,8 @@ for (const modell of modeller) {
         (korrigert ? ` | ℹ ${korrigert} alvorlighet(er) korrigert av TG-normaliseringen` : "") +
         (s.ukjenteBeloep.length ? ` | ⚠ oppdiktede beløp ikke i rapporten: ${s.ukjenteBeloep.join(", ")}` : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
-        (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : ""),
+        (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : "") +
+        (s.blindsoner.length ? `\n  ℹ kjente blindsoner: ${s.blindsoner.join(" | ")}` : "\n  ℹ ingen kjente blindsoner truffet"),
     });
     console.log(`${status} etter ${sek}s`);
   } catch (err) {

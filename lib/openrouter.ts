@@ -23,7 +23,7 @@ export async function analyserMedOpenRouter(
   bruker: string,
   schema: object,
   modell: string = OPENROUTER_MODEL // overstyres av testlab-scriptet; route.ts bruker env
-): Promise<{ resultat: unknown; tokens: { inn: number; ut: number } }> {
+): Promise<{ resultat: unknown; leverandor: string; tokens: { inn: number; ut: number } }> {
   if (!API_KEY) {
     throw new Error("OPENROUTER_API_KEY mangler i .env.local (hent på openrouter.ai).");
   }
@@ -75,6 +75,10 @@ export async function analyserMedOpenRouter(
 
   return {
     resultat,
+    // Leverandøren varierer mellom kall for samme modell – og det er nettopp
+    // ruting til småkontekst-endepunkter som forårsaket de amputerte analysene.
+    // Logg den, så er neste rutingproblem synlig med én gang.
+    leverandor: data?.provider ?? "ukjent",
     tokens: {
       inn: data?.usage?.prompt_tokens ?? 0,
       ut: data?.usage?.completion_tokens ?? 0,
@@ -99,6 +103,23 @@ async function kall(
       model: modell,
       temperature: 0,
       seed: 42, // reduserer kjøring-til-kjøring-variasjon der leverandøren støtter det
+      /**
+       * KRITISK: skru AV context compression.
+       *
+       * OpenRouter bruker den som standard på endepunkter med ≤8k kontekst, og
+       * den fjerner innhold FRA MIDTEN av prompten. Med en rapport på ~11k tokens
+       * betyr det at midtsidene forsvinner uten noe varsel – modellen får s. 1–2
+       * og 8–11, analyserer det den fikk, og leverer et svar som ser komplett ut.
+       *
+       * Målt 25.07.2026: 4 av 10 kjøringer mot samme rapport manglet s. 3–7.
+       * Fordelingen var bimodal (13–16 funn eller 5–7), fordi OpenRouter ruter
+       * mellom ulike leverandør-endepunkter for samme modell.
+       *
+       * Med denne av feiler slike forespørsler i stedet med en tydelig feil.
+       * For dette produktet er en ærlig feilmelding uendelig mye bedre enn en
+       * stille amputert analyse av boligen noen skal kjøpe.
+       */
+      plugins: [{ id: "context-compression", enabled: false }],
 
       ...(response_format ? { response_format } : {}),
       messages: [
