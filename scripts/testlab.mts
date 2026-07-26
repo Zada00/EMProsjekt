@@ -33,6 +33,7 @@ const { analyserMedOpenRouter, OPENROUTER_MODEL } = await import("../lib/openrou
 const { pdfTilTekst } = await import("../lib/pdftext");
 const { SYSTEM_PROMPT, TEKSTMOTOR_REGLER, PROMPT_VERSJON } = await import("../lib/prompt");
 const { normaliserAlvorlighet, rapportJsonSchema, rapportSchema } = await import("../lib/schema");
+const { vurderDekning } = await import("../lib/dekningsvakt");
 type Rapport = import("../lib/schema").Rapport;
 
 // ---- Fasit for referansetesten ----
@@ -263,6 +264,14 @@ for (const modell of modeller) {
         (s.ukjenteBeloep.length ? ` | ⚠ oppdiktede beløp ikke i rapporten: ${s.ukjenteBeloep.join(", ")}` : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
         (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : "") +
+        (() => {
+          // Dekningsvakten slik den kjører i produksjon – ville denne blitt forkastet?
+          const d = vurderDekning(rapport, tekst);
+          return d.usikker
+            ? `\n  ℹ dekningsvakt: ikke anvendelig (${d.usikker})`
+            : `\n  ${d.ufullstendig ? "⛔" : "ℹ"} dekningsvakt: ${d.dekket}/${d.totalt} TG-bærende sider sitert (${Math.round(d.andel * 100)} %)` +
+              (d.ufullstendig ? " – VILLE BLITT FORKASTET i produksjon" : "");
+        })() +
         (s.blindsoner.length ? `\n  ℹ kjente blindsoner: ${s.blindsoner.join(" | ")}` : "\n  ℹ ingen kjente blindsoner truffet"),
     });
     console.log(`${status} etter ${sek}s`);

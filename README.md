@@ -123,14 +123,42 @@ og er verdt å huske hvis noen senere vurderer å parse tabellen maskinelt.
 testlab-resultat. Bump den ved enhver endring i prompt-tekstene – ellers blir gamle målinger
 sammenlignet med nye uten at noen oppdager det.
 
-### To-kjørings-konsensus
+### Målt feilmodus: modellen mister midten av dokumentet
 
-Målinger (2× `--n=3` mot Sandvika-rapporten) viser at Nemotron 3 Ultra treffer 12/12
-sakskomplekser i ca. 2 av 3 kjøringer – men kollapser i den tredje og mister *begge* TG3-funnene.
-`lib/konsensus.ts` håndterer det uten å falle tilbake på Claude: hver analyse kjøres 2× parallelt,
-og resultatet leveres kun hvis kjøringene er enige om TG3-bildet (sammenslåing tillatt) og
-dekningen (maks 60/40-sprik). Ved sprik avgjør en tredje kjøring; er ingen to enige, får brukeren
-ærlig beskjed i stedet for en upålitelig analyse. Koster 2–3 kall per analyse (~16–25 analyser/dag).
+58 kjøringer mot samme referanserapport (Sandvika, ~12k tokens) avdekket én dominerende
+feilmodus: modellen analyserer kun de første og siste sidene, og påstår i sammendraget at
+midtsidene «mangler i dokumentet». De gjør ikke det – input-tokens er identisk i gode og
+dårlige kjøringer, leverandøren er den samme, og `pdfTilTekst` leverer alle sider. Dette er
+klassisk *lost in the middle*, og resultatet ser komplett og selvsikkert ut.
+
+Feilraten er **ikke stabil**:
+
+| Måleserie | Kollaps | Rate |
+|---|---|---|
+| 25.07, kl. 01–04 UTC | 12 av 29 | 41 % |
+| 26.07, kl. 11–13 UTC | 2 av 29 | 7 % |
+
+Identisk prompt (`v3-2026-07-25`), modell, leverandør og dokument. Forskjellen er statistisk
+signifikant (p ≈ 0,002) og skyldes trolig last på gratisendepunktet. Praktisk betydning: kvaliteten
+på gratismotoren varierer med tidspunkt, og du kan ikke love en bruker hva de får.
+
+Ingen promptendring har påvirket dette. Reglene A–I fikset formatfeil (kilder, beløp,
+faktaopplysninger) – de fikset ikke dette, fordi det ikke er et instruksjonsproblem.
+
+### To forsvarslinjer
+
+**Dekningsvakt** (`lib/dekningsvakt.ts`) – deterministisk, koster ingenting. En tilstandsrapport
+nevner «TG 2»/«TG 3» som tekst på de sidene som faktisk vurderer bygningsdeler. Har modellen
+ikke sitert dem, har den ikke lest dem. Analyser som dekker under 60 % av de TG-bærende sidene
+forkastes. Validert på 29 kjøringer: begge kollapsene fanget, null falske positive (kollaps 33–50 %
+dekning, korrekte analyser 67–100 %). Avstår når dokumentet har færre enn tre TG-bærende sider,
+siden signalet da er for svakt – typisk rene salgsoppgaver.
+
+**To-kjørings-konsensus** (`lib/konsensus.ts`) – fanger det vakten ikke ser. Hver analyse kjøres
+2× parallelt, og resultatet leveres kun hvis kjøringene er enige om TG3-bildet (sammenslåing
+tillatt) og dekningen (maks 60/40-sprik). Ved sprik avgjør en tredje kjøring; er ingen to enige,
+får brukeren ærlig beskjed i stedet for en upålitelig analyse. Ingen Claude-fallback.
+Koster 2–3 kall per analyse (~16–25 analyser/dag på gratiskvoten).
 
 ### Testlab-scriptet
 
@@ -145,8 +173,10 @@ teller som én sak), beløp verifisert mot kildeteksten, og `Dok N`-kilder ved e
 `testlab-resultater/` for manuell kvalitetsvurdering. Fasiten ligger øverst i scriptet og må
 tilpasses hvis du bytter referanserapport.
 
-**Status:** Claude er produksjonsmotoren. Gratismodellene finner forholdene, men er ustabile på
-dekning og upresise på kildekobling – testlab, ikke produksjon.
+**Status:** Claude er produksjonsmotoren – 3 av 3 kjøringer med full dekning, korrekte TG-er og
+kildeverifiserte beløp, til rundt én krone per analyse. Nemotron 3 Ultra kan levere jevngodt
+arbeid (26 av 29 rene på en god dag), men kvaliteten svinger med forhold vi ikke kontrollerer.
+Med dekningsvakt og konsensus er den forsvarlig – uten dem er den ikke det.
 
 ---
 
@@ -166,8 +196,11 @@ dekning og upresise på kildekobling – testlab, ikke produksjon.
   eller rene bildeskann, trenger et tekstuttrekks-/OCR-steg foran (f.eks. Azure Document
   Intelligence) som splitter og sender ren tekst i stedet. Bygg dette først når dere faktisk
   treffer grensen — ikke før.
-- **Gratismodeller er ustabile:** ca. 1 av 3 kjøringer kollapser (mister TG3-funn). Konsensusen
-  fanger det, men koster kvote. Ingen prompt har fjernet lotterikomponenten – det er modelltaket.
+- **Gratismodellenes kvalitet svinger med tidspunkt:** 41 % kollaps om natten, 7 % på formiddagen,
+  med identisk oppsett. Dekningsvakt og konsensus håndterer det, men du kan ikke forutsi hvilket
+  regime en bruker treffer.
+- **Dekningsvakten er kalibrert på NS 3600-rapporter** der TG-ene står som tekst. Terskelen (60 %)
+  er validert på én rapport – utvid valideringen når fasit for flere rapporter er på plass.
 - **Feilkoblede beløp:** en modell knyttet bodens sjablonganslag til badet. Beløpsvakten sjekker
   at tallet finnes i kilden, ikke at det tilhører riktig kontrollpunkt – radnivå-attribusjon må
   fortsatt kontrolleres manuelt.

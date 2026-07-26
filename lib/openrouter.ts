@@ -112,15 +112,23 @@ async function kall(
        * NB: dette var IKKE årsaken til de ufullstendige analysene (se under).
        * Innstillingen står fordi den er riktig i seg selv, ikke som en fiks.
        *
-       * MÅLT 25.07.2026 – "lost in the middle", ikke transport:
-       * 9 av 20 kjøringer mot samme rapport analyserte kun s. 1–2 og 8–11, og
-       * påsto i sammendraget at s. 3–7 "mangler". Men:
-       *   – input-tokens var identisk (12 364) i alle kjøringer, også de gode
-       *   – leverandøren var Nvidia i samtlige, ingen ruting-variasjon
+       * MÅLT – "lost in the middle", ikke transport:
+       * Noen kjøringer analyserer kun s. 1–2 og 8–11 og påstår i sammendraget
+       * at s. 3–7 "mangler i dokumentet". Men:
+       *   – input-tokens er identisk (12 364) i gode og dårlige kjøringer
+       *   – leverandøren er Nvidia i samtlige, ingen ruting-variasjon
        *   – pdfTilTekst leverer alle 11 sider (s. 3: 2076 tegn, s. 6: 3459 tegn)
-       * Modellen FÅR altså hele dokumentet og mister midten under lesing – så
-       * konfabulerer den en forklaring på hvorfor analysen er kort.
-       * Dette er modellens tak ved ~12k tokens, og kan ikke fikses i prompt.
+       * Modellen FÅR hele dokumentet, mister midten under lesing, og
+       * konfabulerer så en forklaring på hvorfor analysen ble kort.
+       *
+       * Feilraten er IKKE en stabil egenskap ved modellen:
+       *   25.07 kl. 01–04 UTC: 12 av 29 kjøringer kollapset (41 %)
+       *   26.07 kl. 11–13 UTC:  2 av 29 kjøringer kollapset (7 %)
+       * Identisk prompt, modell, leverandør og dokument. Forskjellen er
+       * signifikant (p ≈ 0,002) og skyldes trolig last på gratisendepunktet.
+       * Konsekvens: du kan ikke love en bruker noe om hvilken dag de treffer.
+       * Derfor forkaster dekningsvakten (lib/dekningsvakt.ts) slike analyser
+       * per kjøring, og konsensusen fanger resten.
        */
       plugins: [{ id: "context-compression", enabled: false }],
 
