@@ -8,6 +8,7 @@ import { sjekkTilgang } from "@/lib/tilgang";
 // Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
 const ENGINE = process.env.ENGINE ?? "anthropic";
 import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
+import { vurderDekning } from "@/lib/dekningsvakt";
 import { erEnige, velgBeste } from "@/lib/konsensus";
 import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema, type Rapport } from "@/lib/schema";
 
@@ -96,16 +97,30 @@ export async function POST(request: Request) {
             // dekningen; spriker de, avgjør en tredje. Ingen Claude-fallback.
             const kjørEn = async (): Promise<Rapport | null> => {
                 try {
-                    const { resultat, tokens } = await analyserMedOpenRouter(
+                    const { resultat, tokens, leverandor } = await analyserMedOpenRouter(
                         SYSTEM_PROMPT + TEKSTMOTOR_REGLER,
                         bruker,
                         rapportJsonSchema
                     );
-                    console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut}`);
+                    console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut} leverandør=${leverandor}`);
                     const parsed = rapportSchema.safeParse(resultat);
                     if (!parsed.success) {
                         console.error("[openrouter] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
                         return null;
+                    }
+
+                    // DEKNINGSVAKT: forkast analyser som ikke har sitert nok av de
+                    // TG-bærende sidene – da har modellen mistet deler av dokumentet.
+                    // Kjøringen behandles som mislykket, så konsensusen prøver på nytt.
+                    // Kun ved ETT dokument: med flere kolliderer [Side N]-numrene.
+                    if (files.length === 1) {
+                        const dom = vurderDekning(parsed.data, tekster[0]);
+                        if (dom.ufullstendig) {
+                            console.warn(
+                                `[openrouter] forkastet ufullstendig analyse: siterte kun ${dom.dekket}/${dom.totalt} TG-bærende sider (${Math.round(dom.andel * 100)} %) – modellen har trolig mistet midtpartiet`
+                            );
+                            return null;
+                        }
                     }
                     return parsed.data;
                 } catch (err) {
