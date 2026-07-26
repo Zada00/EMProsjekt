@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { loggKostnad } from "@/lib/kostnad";
+import { analyserMedOpenRouter, OPENROUTER_MODEL } from "@/lib/openrouter";
+import { pdfTilTekst } from "@/lib/pdftext";
 import { sjekkTilgang } from "@/lib/tilgang";
-import { SYSTEM_PROMPT } from "@/lib/prompt";
-import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
+
+// Motorvalg: "anthropic" (standard) | "openrouter" (testlab for andre modeller)
+const ENGINE = process.env.ENGINE ?? "anthropic";
+import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
+import { vurderDekning } from "@/lib/dekningsvakt";
+import { erEnige, velgBeste } from "@/lib/konsensus";
+import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema, type Rapport } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -62,6 +69,110 @@ export async function POST(request: Request) {
         );
     }
 
+    // ===== OPENROUTER-GRENEN (testlab) =====
+    if (ENGINE === "openrouter") {
+        try {
+            const tekster = await Promise.all(
+                files.map(async (f) => pdfTilTekst(Buffer.from(await f.arrayBuffer())))
+            );
+            const tomme = tekster
+                .map((t, i) => ({ t, navn: files[i].name }))
+                .filter((x) => x.t.length < 200);
+            if (tomme.length) {
+                return NextResponse.json(
+                    { error: `"${tomme[0].navn}" ser ut til å være et rent bildeskann uten tekstlag. Bruk Claude-motoren (ENGINE=anthropic) for skannede dokumenter.` },
+                    { status: 422 }
+                );
+            }
+
+            const bruker =
+                (files.length > 1
+                    ? `Du får ${files.length} dokumenter for SAMME bolig, adskilt under. Kilde-format: "Dok N, s. X" der X hentes fra [Side X]-markørene.\n\n` +
+                      tekster.map((t, i) => `===== Dok ${i + 1}: ${files[i].name} =====\n${t}`).join("\n\n")
+                    : `Sidetall står som [Side N]-markører i teksten – bruk dem i "kilde" (f.eks. "s. 12").\n\n${tekster[0]}`) +
+                "\n\nForklar dette for meg som boligkjøper. Husk kilde på alt, oversett fagord, ingen presise kronebeløp.";
+
+            // TO-KJØRINGS-KONSENSUS: gratismodeller kollapser av og til (mister
+            // TG3-funn). To uavhengige kjøringer må være enige om TG3-bildet og
+            // dekningen; spriker de, avgjør en tredje. Ingen Claude-fallback.
+            const kjørEn = async (): Promise<Rapport | null> => {
+                try {
+                    const { resultat, tokens, leverandor } = await analyserMedOpenRouter(
+                        SYSTEM_PROMPT + TEKSTMOTOR_REGLER,
+                        bruker,
+                        rapportJsonSchema
+                    );
+                    console.log(`[openrouter] kode=${tilgang.kode} modell=${OPENROUTER_MODEL} inn=${tokens.inn} ut=${tokens.ut} leverandør=${leverandor}`);
+                    const parsed = rapportSchema.safeParse(resultat);
+                    if (!parsed.success) {
+                        console.error("[openrouter] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
+                        return null;
+                    }
+
+                    // DEKNINGSVAKT: forkast analyser som ikke har sitert nok av de
+                    // TG-bærende sidene – da har modellen mistet deler av dokumentet.
+                    // Kjøringen behandles som mislykket, så konsensusen prøver på nytt.
+                    // Kun ved ETT dokument: med flere kolliderer [Side N]-numrene.
+                    if (files.length === 1) {
+                        const dom = vurderDekning(parsed.data, tekster[0]);
+                        if (dom.ufullstendig) {
+                            console.warn(
+                                `[openrouter] forkastet ufullstendig analyse: siterte kun ${dom.dekket}/${dom.totalt} TG-bærende sider (${Math.round(dom.andel * 100)} %) – modellen har trolig mistet midtpartiet`
+                            );
+                            return null;
+                        }
+                    }
+                    return parsed.data;
+                } catch (err) {
+                    console.error("[openrouter] kjøring feilet:", err);
+                    return null;
+                }
+            };
+
+            const gyldige = (await Promise.all([kjørEn(), kjørEn()])).filter(
+                (r): r is Rapport => r !== null
+            );
+
+            let leveranse: Rapport | null = null;
+            let antallKall = 2;
+            if (gyldige.length === 2 && erEnige(gyldige[0], gyldige[1])) {
+                leveranse = velgBeste(gyldige[0], gyldige[1]);
+            } else {
+                // Sprik eller frafall: tredje kjøring som dommer.
+                antallKall = 3;
+                const dommer = await kjørEn();
+                if (dommer) {
+                    // Leveres KUN hvis to kjøringer er enige – én uverifisert
+                    // kjøring alene er nettopp det konsensusen skal beskytte mot.
+                    const enig = gyldige.find((g) => erEnige(g, dommer));
+                    leveranse = enig ? velgBeste(enig, dommer) : null;
+                }
+            }
+
+            if (!leveranse) {
+                console.error(`[openrouter] konsensus feilet etter ${antallKall} kall (modell: ${OPENROUTER_MODEL})`);
+                return NextResponse.json(
+                    { error: `Analysene fra ${OPENROUTER_MODEL} spriker for mye til å være pålitelige. Prøv igjen – eller bytt modell.` },
+                    { status: 502 }
+                );
+            }
+
+            console.log(`[openrouter] konsensus OK etter ${antallKall} kall`);
+            const normalisert = normaliserAlvorlighet(leveranse);
+            if (normalisert.korrigert > 0) {
+                console.warn(`[openrouter] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG (modell: ${OPENROUTER_MODEL})`);
+            }
+            return NextResponse.json({ rapport: normalisert.rapport, modell: `openrouter/${OPENROUTER_MODEL}` });
+        } catch (err) {
+            console.error("[openrouter] analyse feilet:", err);
+            return NextResponse.json(
+                { error: err instanceof Error ? err.message : "OpenRouter-analysen feilet." },
+                { status: 500 }
+            );
+        }
+    }
+
+    // ===== ANTHROPIC-GRENEN (standard) =====
     const dokumentBlokker = await Promise.all(
         files.map(async (f) => ({
             type: "document" as const,
@@ -114,7 +225,7 @@ export async function POST(request: Request) {
 
         loggKostnad(tilgang.kode, files.map((f) => f.name).join(", "), message.usage);
 
-        const toolUse = message.content.find((b) => b.type === "tool_use");
+    const toolUse = message.content.find((b) => b.type === "tool_use");
         if (!toolUse || toolUse.type !== "tool_use") {
             return NextResponse.json(
                 { error: "Modellen svarte uten strukturert resultat. Prøv igjen." },
@@ -137,7 +248,11 @@ export async function POST(request: Request) {
             );
         }
 
-        return NextResponse.json({ rapport: parsed.data, modell: MODEL });
+        const normalisert = normaliserAlvorlighet(parsed.data);
+        if (normalisert.korrigert > 0) {
+            console.warn(`[boligcopilot] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG`);
+        }
+        return NextResponse.json({ rapport: normalisert.rapport, modell: MODEL });
     } catch (err) {
         console.error("[boligcopilot] analyse feilet:", err);
         return NextResponse.json(
