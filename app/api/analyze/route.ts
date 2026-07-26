@@ -20,6 +20,9 @@ const MAX_TOTAL = 30 * 1024 * 1024; // ~30 MB samlet (API-grensen er ~32 MB per 
  * for varigheten av forespørselen og forsvinner når funksjonen returnerer.
  */
 export async function POST(request: Request) {
+    // Til bruk i logger i stedet for filnavn/innhold – se docs/legal/gdpr-requirements.md (Logging Policy).
+    const forespoerselId = crypto.randomUUID().slice(0, 8);
+
     // Tilgangskontroll (pilot): kode i header, rate-limit og dagskvote per kode.
     const tilgang = sjekkTilgang(request.headers.get("x-tilgangskode"));
     if (!tilgang.ok) {
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
             );
         }
 
-        loggKostnad(tilgang.kode, files.map((f) => f.name).join(", "), message.usage);
+        loggKostnad(tilgang.kode, forespoerselId, message.usage);
 
         const toolUse = message.content.find((b) => b.type === "tool_use");
         if (!toolUse || toolUse.type !== "tool_use") {
@@ -124,14 +127,18 @@ export async function POST(request: Request) {
 
         const parsed = rapportSchema.safeParse(toolUse.input);
         if (!parsed.success) {
-            // Logg alt server-side så vi kan feilsøke, og gi frontend en konkret første årsak.
-            console.error("[boligcopilot] validering feilet:", JSON.stringify(parsed.error.issues, null, 2));
+            // Kun felt/kode/feilmelding logges – ALDRI det faktiske innholdet modellen
+            // leverte (kan stamme fra dokumentet). Se docs/legal/gdpr-requirements.md.
+            const trygg = parsed.error.issues.map((i) => ({ path: i.path, code: i.code, message: i.message }));
+            console.error(`[boligcopilot] req=${forespoerselId} validering feilet:`, JSON.stringify(trygg));
             const første = parsed.error.issues[0];
             const hvor = første?.path?.join(".") || "ukjent felt";
             return NextResponse.json(
                 {
                     error: `Resultatet besto ikke valideringen (felt: ${hvor} – ${første?.message ?? "ukjent årsak"}). Detaljer er logget i serverterminalen.`,
-                    detaljer: parsed.error.flatten(),
+                    // Full feildetalj (kan i prinsippet inneholde fragmenter fra dokumentet
+                    // via modellsvaret) skal kun ut i ikke-produksjonsmiljø.
+                    ...(process.env.NODE_ENV !== "production" ? { detaljer: parsed.error.flatten() } : {}),
                 },
                 { status: 502 }
             );
@@ -139,7 +146,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ rapport: parsed.data, modell: MODEL });
     } catch (err) {
-        console.error("[boligcopilot] analyse feilet:", err);
+        console.error(`[boligcopilot] req=${forespoerselId} analyse feilet:`, err instanceof Error ? err.message : err);
         return NextResponse.json(
             { error: "Analysen feilet. Sjekk API-nøkkel og serverlogg." },
             { status: 500 }

@@ -118,15 +118,27 @@ git push -u origin main
   Tom = åpen (lokal utvikling). Frontend spør om kode ved 401 og husker den i økten.
 - **Rate-limit/kvote**: `RATE_PER_MIN` (std 6) og `QUOTA_PER_DAY` (std 40) per kode. I minne –
   holder for én instans; bytt til Redis ved skalering.
-- **Kostnadslogging**: hver analyse logges i serverterminalen med tokens og ≈ kr, pluss dagssum.
+- **Kostnadslogging**: hver analyse logges i serverterminalen med en tilfeldig forespørsels-ID,
+  tokens og ≈ kr, pluss dagssum – aldri filnavn eller dokumentinnhold.
 - **Sikkerhets-headers**: X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy.
-- **Feilrespons**: zod-detaljer sendes ikke til klient i produksjon.
+- **Feilrespons**: zod-detaljer sendes ikke til klient i produksjon (`NODE_ENV === "production"`).
 - **Sync-vakt**: bygget feiler høyt hvis zod- og JSON-skjema i `lib/schema.ts` glir fra hverandre.
 - **Tester**: `npm test` (vitest) – regresjonsvern for skjema-normaliseringen.
 
+## Personvern / GDPR
+
+Se `docs/legal/` for kravdokument, gap-analyse mot faktisk kode, og utkast til
+personvernerklæring/vilkår/Art. 30-protokoll. Utkastene er **ikke** koblet inn
+som sider i appen ennå – se `docs/legal/gdpr-gap-analysis.md` for hvorfor og
+hva som gjenstår.
+
 ## Gjenstår før ekte kundedata (IKKE kode)
 
-- **Databehandleravtale (DPA)** med Anthropic + personvernerklæring – kundedokumenter sendes til API-et.
+- **Databehandleravtale (DPA)** med Anthropic – gjelder allerede automatisk ved kommersiell
+  API-bruk (ingen signering nødvendig), men bekreft at kontoen kjører under Commercial Terms
+  of Service. Se `docs/legal/`.
+- **Reelt firmainnhold** i personvernerklæring/vilkår-utkastene (`[SETT INN: ...]`-felt).
+- **Jurist-/personvernfaglig gjennomgang** av personvernerklæring, vilkår og databehandlingsmodell.
 - `npm audit`: 2 kjente sårbarheter i byggekjeden (postcss via Next) – krever kontrollert
   Next-oppgradering; ikke kjør `audit fix --force`.
 - HTTPS/domene ved deploy (håndteres av plattformen, f.eks. Vercel).

@@ -4,6 +4,11 @@
  * pitch og prising ("en analyse koster oss X").
  *
  * Priser for claude-sonnet-4-6 (USD per million tokens). Oppdater ved modellbytte.
+ *
+ * GDPR/logging-policy (se docs/legal/gdpr-requirements.md): loggen skal ALDRI
+ * inneholde filnavn, dokumentinnhold eller annet som kan identifisere en person –
+ * norske eiendomsdokumenter er ofte filnavngitt med eier/adresse. Vi logger derfor
+ * kun en tilfeldig forespørsels-ID (ingen kobling til dokumentet), ikke filnavnet.
  */
 
 const PRIS_INPUT_USD = 3;
@@ -14,7 +19,7 @@ let dagsSum = { dato: "", nok: 0, antall: 0 };
 
 export function loggKostnad(
   kode: string,
-  filnavn: string,
+  forespoerselId: string,
   usage: { input_tokens: number; output_tokens: number } | undefined
 ) {
   if (!usage) return;
@@ -28,6 +33,6 @@ export function loggKostnad(
   dagsSum.antall += 1;
 
   console.log(
-    `[kostnad] kode=${kode} fil="${filnavn}" in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
+    `[kostnad] kode=${kode} req=${forespoerselId} in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
   );
 }
