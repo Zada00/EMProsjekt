@@ -83,14 +83,48 @@ Presisjon er produktet, ikke en detalj.
 
 ---
 
+## Ekstern databerikelse: prisvurdering (denne branchen)
+
+Verktøyet leste tidligere kun det opplastede dokumentet, isolert. Denne branchen
+legger til én ekstern kilde: hvis salgsoppgaven oppgir **adresse** og
+**prisantydning** (nye felt Claude nå trekker ut, se `lib/schema.ts`), henter
+backend faktisk offentlig prisstatistikk og sammenligner boligens kr/m² mot
+kommunesnittet.
+
+- **Kartverkets adresse-API** (`ws.geonorge.no`) – geokoder adresse → kommunenummer.
+  `lib/geokoding.ts`
+- **SSB PxWebApi**, tabell 14310 – kommunesnitt kr/m² per boligtype, siste kvartal.
+  `lib/ssb.ts`
+- **`lib/prisvurdering.ts`** – ren beregningslogikk (kr/m² + avvik%), enhetstestet
+  uten nettverk (`tests/prisvurdering.test.ts`, `tests/ssb.test.ts`).
+
+Begge kilder er gratis og krever **ingen API-nøkkel eller registrering**. Ingen nye
+miljøvariabler trengs. Berikelsen feiler alltid stille (returnerer `null`) hvis
+adresse mangler, kommunen er for liten til å ha data, eller et av API-ene er nede –
+den kan aldri velte selve dokumentanalysen. Vises i både enkeltbolig- og
+duell-modus.
+
+Vurdert og forkastet for nå (se full research i prosjekthistorikken): Kartverket
+matrikkel/heftelser (krever bedriftssøknad), FINN.no prishistorikk (ingen
+tredjeparts-API finnes), reguleringsplan-oppslag (ingen samlet nasjonalt API ennå).
+Aktuelle neste kandidater: NVE (flom/skredfare), NGU (radon), støy- og
+kulturminnedata – samme gratis WMS-mønster som over.
+
+**Merk for personvernerklæring:** Kartverket og SSB blir nye tredjeparter som mottar
+boligens adresse (ikke resten av dokumentet) – må inn i personvernerklæringen når
+denne branchen merges (se `legal-privacy-fixes`-branchen).
+
+---
+
 ## Kjente begrensninger (og dermed neste steg)
 
 - **Store/skannede PDF-er:** Claudes PDF-grense er ca. 32 MB / ~100 sider. Rapporter over dette,
   eller rene bildeskann, trenger et tekstuttrekks-/OCR-steg foran (f.eks. Azure Document
   Intelligence) som splitter og sender ren tekst i stedet. Bygg dette først når dere faktisk
   treffer grensen — ikke før.
-- **Ingen tester ennå:** Utvikler 3 bør legge til et lite testsett som kjører noen kjente
-  rapporter gjennom og sjekker at antall TG3 stemmer (regresjonsvern for prompt-endringer).
+- **Tester finnes** (`npm test`, vitest) for skjema-normalisering, SSB-boligtype-mapping og
+  prisvurdering-beregning – men fortsatt ingen ende-til-ende-måling av TG2/TG3-presisjon mot
+  fasit på ekte rapporter.
 - **Kvalitetsmåling:** lag et regneark med fasit (manuelt lest) for 10 rapporter, og mål
   presisjon/recall på TG2/TG3 hver gang prompten endres.
 

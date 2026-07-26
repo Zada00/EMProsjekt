@@ -12,6 +12,8 @@ describe("skjema-normalisering", () => {
     boligtype: "Enebolig",
     byggeaar: 1984,
     bruksareal_bra_m2: 99,
+    adresse: null,
+    prisantydning: null,
     sammendrag: "Test.",
     risikoer: [],
     sporsmal_til_visning: [],
@@ -43,6 +45,16 @@ describe("skjema-normalisering", () => {
   it("normaliserer dokumenttype 'Salgsoppgave' og faller tilbake til 'annet' ved ukjent", () => {
     expect(rapportSchema.parse({ ...gyldigBasis, dokumenttype: "Salgsoppgave" }).dokumenttype).toBe("salgsoppgave");
     expect(rapportSchema.parse({ ...gyldigBasis, dokumenttype: "tullball" }).dokumenttype).toBe("annet");
+  });
+
+  it("godtar prisantydning skrevet med mellomrom som tusenskille", () => {
+    const r = rapportSchema.parse({ ...gyldigBasis, prisantydning: "5 990 000" });
+    expect(r.prisantydning).toBe(5_990_000);
+  });
+
+  it("godtar prisantydning med 'kr' og tankestrek", () => {
+    const r = rapportSchema.parse({ ...gyldigBasis, prisantydning: "kr 3 200 000,-" });
+    expect(r.prisantydning).toBe(3_200_000);
   });
 
   it("avviser svar uten sammendrag", () => {

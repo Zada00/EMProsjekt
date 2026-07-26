@@ -1,6 +1,9 @@
 "use client";
 
 import type { Rapport, Risiko } from "@/lib/schema";
+import type { PrisVurdering } from "@/lib/prisvurdering";
+
+const formaterKr = (n: number) => n.toLocaleString("nb-NO");
 
 /** Referanse til en opplastet PDF (for klikkbare kilder). */
 export type DokRef = { name: string; url: string };
@@ -115,7 +118,15 @@ const DOKTYPE_NAVN: Record<string, string> = {
     annet: "Annet dokument",
 };
 
-export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokumenter: DokRef[] }) {
+export function ReportView({
+    rapport,
+    dokumenter,
+    prisvurdering,
+}: {
+    rapport: Rapport;
+    dokumenter: DokRef[];
+    prisvurdering?: PrisVurdering | null;
+}) {
     const teller = (niva: string) => rapport.risikoer.filter((x) => x.alvorlighet === niva).length;
     const hoy = teller("høy");
     const mid = teller("middels");
@@ -147,6 +158,28 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 </div>
                 <RisikoDonut hoy={hoy} mid={mid} lav={lav} />
             </div>
+
+            {prisvurdering && (
+                <div className="avvik" style={{ borderLeft: "4px solid var(--line)", marginBottom: 20 }}>
+                    <div className="top">
+                        <span className="del">Prisvurdering</span>
+                    </div>
+                    <div className="desc">
+                        Snittpris i {prisvurdering.kommunenavn} ({prisvurdering.kvartal}): {formaterKr(prisvurdering.krPerM2)} kr/m².
+                        {prisvurdering.egenKrPerM2 != null && prisvurdering.avvikProsent != null && (
+                            <>
+                                {" "}Denne boligen: {formaterKr(prisvurdering.egenKrPerM2)} kr/m² (
+                                {prisvurdering.avvikProsent > 0 ? "+" : ""}
+                                {prisvurdering.avvikProsent}% mot snittet).
+                            </>
+                        )}
+                    </div>
+                    <div className="notfound">
+                        Kilde: SSB, offentlig statistikk. Sier noe om prisnivået i området – ikke en
+                        verdivurdering av akkurat denne boligen.
+                    </div>
+                </div>
+            )}
 
             <div className="section-title">Ting å være obs på ({rapport.risikoer.length})</div>
             {rapport.risikoer.length === 0 && (

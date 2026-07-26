@@ -4,6 +4,9 @@ import { loggKostnad } from "@/lib/kostnad";
 import { sjekkTilgang } from "@/lib/tilgang";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { rapportJsonSchema, rapportSchema } from "@/lib/schema";
+import { finnKommune } from "@/lib/geokoding";
+import { hentPrisstatistikk } from "@/lib/ssb";
+import { beregnPrisvurdering, type PrisVurdering } from "@/lib/prisvurdering";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -137,12 +140,41 @@ export async function POST(request: Request) {
             );
         }
 
-        return NextResponse.json({ rapport: parsed.data, modell: MODEL });
+        const prisvurdering = await hentPrisvurdering(parsed.data.adresse, parsed.data.boligtype, parsed.data.prisantydning, parsed.data.bruksareal_bra_m2);
+
+        return NextResponse.json({ rapport: parsed.data, modell: MODEL, prisvurdering });
     } catch (err) {
         console.error("[boligcopilot] analyse feilet:", err);
         return NextResponse.json(
             { error: "Analysen feilet. Sjekk API-nøkkel og serverlogg." },
             { status: 500 }
         );
+    }
+}
+
+/**
+ * Ekstern berikelse (geokoding + SSB-prisstatistikk): aldri kritisk for
+ * hovedanalysen. Svikter noe her (adresse mangler, tredjeparts-API er nede,
+ * kommunen er for liten til å ha data), returneres bare null – brukeren får
+ * uansett den fulle rapporten fra Claude.
+ */
+async function hentPrisvurdering(
+    adresse: string | null,
+    boligtype: string | null,
+    prisantydning: number | null,
+    bruksarealM2: number | null
+): Promise<PrisVurdering | null> {
+    if (!adresse) return null;
+    try {
+        const kommune = await finnKommune(adresse);
+        if (!kommune) return null;
+
+        const stat = await hentPrisstatistikk(kommune.kommunenummer, boligtype);
+        if (!stat) return null;
+
+        return beregnPrisvurdering(stat, prisantydning, bruksarealM2);
+    } catch (err) {
+        console.error("[boligcopilot] prisberikelse feilet (ikke-kritisk):", err);
+        return null;
     }
 }

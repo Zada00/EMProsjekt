@@ -5,12 +5,13 @@ import { Dropzone } from "@/components/Dropzone";
 import { ReportView, type DokRef } from "@/components/ReportView";
 import { CompareView, type NavngittRapport } from "@/components/CompareView";
 import type { Rapport } from "@/lib/schema";
+import type { PrisVurdering } from "@/lib/prisvurdering";
 
 type Mode = "en" | "duell";
 
 class TilgangFeil extends Error { }
 
-async function analyserFiler(filer: File[]): Promise<Rapport> {
+async function analyserFiler(filer: File[]): Promise<{ rapport: Rapport; prisvurdering: PrisVurdering | null }> {
     const body = new FormData();
     filer.forEach((f) => body.append("file", f));
     const kode = typeof window !== "undefined" ? sessionStorage.getItem("tilgangskode") : null;
@@ -22,7 +23,7 @@ async function analyserFiler(filer: File[]): Promise<Rapport> {
     const data = await res.json();
     if (res.status === 401) throw new TilgangFeil(data.error ?? "Tilgangskode kreves.");
     if (!res.ok) throw new Error(data.error ?? "Noe gikk galt.");
-    return data.rapport as Rapport;
+    return { rapport: data.rapport as Rapport, prisvurdering: (data.prisvurdering as PrisVurdering | null) ?? null };
 }
 
 function tilDokRefs(filer: File[]): DokRef[] {
@@ -36,7 +37,7 @@ export default function Home() {
     const [slots, setSlots] = useState<File[][]>([[], []]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [enkelt, setEnkelt] = useState<{ rapport: Rapport; dokumenter: DokRef[] } | null>(null);
+    const [enkelt, setEnkelt] = useState<{ rapport: Rapport; dokumenter: DokRef[]; prisvurdering: PrisVurdering | null } | null>(null);
     const [duell, setDuell] = useState<NavngittRapport[] | null>(null);
     const [trengerKode, setTrengerKode] = useState(false);
     const [kodeInput, setKodeInput] = useState("");
@@ -69,15 +70,16 @@ export default function Home() {
         setDuell(null);
         try {
             if (mode === "en") {
-                const rapport = await analyserFiler(enFiler);
-                setEnkelt({ rapport, dokumenter: tilDokRefs(enFiler) });
+                const { rapport, prisvurdering } = await analyserFiler(enFiler);
+                setEnkelt({ rapport, dokumenter: tilDokRefs(enFiler), prisvurdering });
             } else {
                 const resultater = await Promise.all(fylteSlots.map((f) => analyserFiler(f)));
                 setDuell(
-                    resultater.map((rapport, i) => ({
+                    resultater.map(({ rapport, prisvurdering }, i) => ({
                         navn: fylteSlots[i][0].name.replace(/\.pdf$/i, ""),
                         rapport,
                         dokumenter: tilDokRefs(fylteSlots[i]),
+                        prisvurdering,
                     }))
                 );
             }
@@ -243,7 +245,7 @@ export default function Home() {
 
             {enkelt && (
                 <>
-                    <ReportView rapport={enkelt.rapport} dokumenter={enkelt.dokumenter} />
+                    <ReportView rapport={enkelt.rapport} dokumenter={enkelt.dokumenter} prisvurdering={enkelt.prisvurdering} />
                     <div className="no-print" style={{ marginTop: 28, display: "flex", gap: 10 }}>
                         <button className="btn" onClick={() => window.print()}>
                             Lagre som PDF / skriv ut

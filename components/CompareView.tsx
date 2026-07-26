@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Rapport } from "@/lib/schema";
 import { aapneKilde, RisikoDonut, type DokRef } from "@/components/ReportView";
+import type { PrisVurdering } from "@/lib/prisvurdering";
+
+const formaterKr = (n: number) => n.toLocaleString("nb-NO");
 
 /**
  * Boligduell: N analyserte rapporter side om side (2, 3, 5 – så mange brukeren vil).
@@ -25,7 +28,7 @@ const DOKTYPE_NAVN: Record<string, string> = {
     annet: "Annet dokument",
 };
 
-export type NavngittRapport = { navn: string; rapport: Rapport; dokumenter: DokRef[] };
+export type NavngittRapport = { navn: string; rapport: Rapport; dokumenter: DokRef[]; prisvurdering?: PrisVurdering | null };
 
 function tell(r: Rapport, niva: string) {
     return r.risikoer.filter((x) => x.alvorlighet === niva).length;
@@ -94,7 +97,7 @@ export function CompareView({ rapporter }: { rapporter: NavngittRapport[] }) {
             >
                 <div className="duel-grid" style={{ ["--cols" as string]: rapporter.length }}>
                     {rapporter.map((x, i) => (
-                        <DuelKolonne key={i} navn={x.navn} rapport={x.rapport} dokumenter={x.dokumenter} />
+                        <DuelKolonne key={i} navn={x.navn} rapport={x.rapport} dokumenter={x.dokumenter} prisvurdering={x.prisvurdering} />
                     ))}
                 </div>
             </div>
@@ -118,7 +121,17 @@ export function CompareView({ rapporter }: { rapporter: NavngittRapport[] }) {
     );
 }
 
-function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: string; dokumenter: DokRef[] }) {
+function DuelKolonne({
+    rapport,
+    navn,
+    dokumenter,
+    prisvurdering,
+}: {
+    rapport: Rapport;
+    navn: string;
+    dokumenter: DokRef[];
+    prisvurdering?: PrisVurdering | null;
+}) {
     const hoy = tell(rapport, "høy");
     const mid = tell(rapport, "middels");
     const lav = tell(rapport, "lav");
@@ -152,6 +165,14 @@ function DuelKolonne({ rapport, navn, dokumenter }: { rapport: Rapport; navn: st
                     </div>
                 </div>
             </div>
+            {prisvurdering && (
+                <div className="notfound" style={{ margin: "0 0 14px" }}>
+                    Snitt {prisvurdering.kommunenavn}: {formaterKr(prisvurdering.krPerM2)} kr/m²
+                    {prisvurdering.egenKrPerM2 != null && prisvurdering.avvikProsent != null && (
+                        <> · denne: {formaterKr(prisvurdering.egenKrPerM2)} kr/m² ({prisvurdering.avvikProsent > 0 ? "+" : ""}{prisvurdering.avvikProsent}%)</>
+                    )}
+                </div>
+            )}
             <div className="facts facts-3" style={{ margin: "0 0 14px" }}>
                 <div className="fact">
                     <div className="label">Høy risiko</div>

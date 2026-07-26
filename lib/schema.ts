@@ -20,6 +20,17 @@ const heltallFraTekst = (v: unknown) => {
 const smaaBokstaver = (v: unknown) =>
     typeof v === "string" ? v.toLowerCase().trim() : v;
 
+/** Kronebeløp skrives ofte med mellomrom/punktum som tusenskille ("5 990 000"),
+ * som `tallFraTekst` sitt regex ikke takler (stopper på første mellomrom). */
+const kroneFraTekst = (v: unknown) => {
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+        const siffer = v.replace(/[^\d]/g, "");
+        if (siffer) return Number(siffer);
+    }
+    return v === undefined ? null : v;
+};
+
 
 /**
  * Datakontrakten for BoligCopilot (B2C – for boligkjøpere).
@@ -58,6 +69,8 @@ export const rapportSchema = z.object({
     boligtype: z.string().nullable(),
     byggeaar: z.preprocess(heltallFraTekst, z.number().int().nullable()),
     bruksareal_bra_m2: z.preprocess(tallFraTekst, z.number().nullable()),
+    adresse: z.string().nullable(), // for prisstatistikk-berikelse (SSB) – ikke vist som "fakta fra dokumentet"
+    prisantydning: z.preprocess(kroneFraTekst, z.number().int().nullable()), // kun til intern kr/m²-sammenligning, aldri presentert som fasit
     sammendrag: z.string(), // 2-4 setninger på vanlig norsk, til en kjøper
     dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
@@ -87,6 +100,16 @@ export const rapportJsonSchema = {
         bruksareal_bra_m2: {
             type: ["number", "null"],
             description: "Bruksareal (BRA) i kvadratmeter.",
+        },
+        adresse: {
+            type: ["string", "null"],
+            description:
+                "Boligens adresse (gate, husnummer, poststed) hvis den står i dokumentet – typisk i salgsoppgaven. Ellers null. Brukes til å hente offentlig prisstatistikk for området, vises ikke direkte som et 'funn'.",
+        },
+        prisantydning: {
+            type: ["integer", "null"],
+            description:
+                "Prisantydning i kroner hvis oppgitt i salgsoppgaven, som rent tall uten mellomrom/kr-tegn (f.eks. 5990000). Ellers null. IKKE forveksle med mulige_kostnader – dette er kjøpesummen, ikke en utbedringskostnad.",
         },
         sammendrag: {
             type: "string",
@@ -170,6 +193,8 @@ export const rapportJsonSchema = {
         "boligtype",
         "byggeaar",
         "bruksareal_bra_m2",
+        "adresse",
+        "prisantydning",
         "sammendrag",
         "risikoer",
         "sporsmal_til_visning",
