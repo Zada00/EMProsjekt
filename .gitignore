@@ -1,3 +1,11 @@
 node_modules
-dist
+.next
 .env
+.env.local
+.vs/
+*.log
+.DS_Store
+next-env.d.ts
+/testdata
+/testlab-resultater
+tsconfig.tsbuildinfo
