@@ -96,13 +96,22 @@ function RisikoKort({ r, badge, border, dokumenter }: { r: Risiko; badge: string
             </div>
             <div className="desc">{r.forklaring}</div>
             <div className="kildelinje">
-                <button
-                    className="kilde kildeknapp"
-                    onClick={() => aapneKilde(r.kilde, dokumenter)}
-                    title="Åpne PDF-en på denne siden"
-                >
-                    {r.kilde} ↗
-                </button>
+                {/* Uten dokumenter (gjenopprettet analyse etter refresh) er blob-URL-ene
+                    borte. Da viser vi kilden som tekst i stedet for en knapp som
+                    ikke gjør noe – en død knapp er verre enn ingen knapp. */}
+                {dokumenter.length > 0 ? (
+                    <button
+                        className="kilde kildeknapp"
+                        onClick={() => aapneKilde(r.kilde, dokumenter)}
+                        title="Åpne PDF-en på denne siden"
+                    >
+                        {r.kilde} ↗
+                    </button>
+                ) : (
+                    <span className="kilde" title="Last opp PDF-en på nytt for å åpne kilden">
+                        {r.kilde}
+                    </span>
+                )}
             </div>
         </div>
     );

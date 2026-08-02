@@ -714,6 +714,20 @@ a {
     padding: 16px;
 }
 
+/* Vises når en analyse er hentet fra øktlageret etter sidelasting.
+   Informerende, ikke en feil – derfor nøytral farge, ikke rød. */
+.gjenopprettet {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--tg2);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 12px 16px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
 .kodetekst {
     font-size: 14px;
     color: var(--muted);

@@ -29,6 +29,53 @@ function tilDokRefs(filer: File[]): DokRef[] {
     return filer.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
 }
 
+/**
+ * Øktlagring av analyseresultatet.
+ *
+ * Hvorfor: en analyse tar opptil to minutter og koster et API-kall. Mister
+ * brukeren den på en utilsiktet refresh, må alt gjøres om igjen.
+ *
+ * GDPR: kun i brukerens egen nettleser (sessionStorage), aldri sendt noe sted,
+ * og borte når fanen lukkes. Selve PDF-en lagres fortsatt ingen steder – løftet
+ * i README står urokket.
+ *
+ * Begrensning: blob-URL-ene til PDF-ene overlever ikke en sidelasting, så
+ * kildeknappene blir til ren tekst i en gjenopprettet analyse. Vi sier fra om
+ * det i stedet for å vise knapper som ikke virker.
+ */
+const LAGER_NOKKEL = "boligcopilot:siste-analyse";
+
+type Lagret = {
+    mode: Mode;
+    enkelt?: { rapport: Rapport };
+    duell?: { navn: string; rapport: Rapport }[];
+};
+
+function lagreOkt(data: Lagret) {
+    try {
+        sessionStorage.setItem(LAGER_NOKKEL, JSON.stringify(data));
+    } catch {
+        // Full eller blokkert lagring skal aldri velte en vellykket analyse.
+    }
+}
+
+function lesOkt(): Lagret | null {
+    try {
+        const rå = sessionStorage.getItem(LAGER_NOKKEL);
+        return rå ? (JSON.parse(rå) as Lagret) : null;
+    } catch {
+        return null;
+    }
+}
+
+function tømOkt() {
+    try {
+        sessionStorage.removeItem(LAGER_NOKKEL);
+    } catch {
+        /* ignorer */
+    }
+}
+
 export default function Home() {
     const [mode, setMode] = useState<Mode>("en");
     // Hver "plass" er én bolig og kan inneholde FLERE PDF-er (tilstandsrapport + salgsoppgave).
@@ -40,6 +87,9 @@ export default function Home() {
     const [duell, setDuell] = useState<NavngittRapport[] | null>(null);
     const [trengerKode, setTrengerKode] = useState(false);
     const [kodeInput, setKodeInput] = useState("");
+    // Satt når analysen er hentet fra øktlageret etter en sidelasting – da
+    // mangler PDF-ene, og kildehenvisningene kan ikke åpnes.
+    const [gjenopprettet, setGjenopprettet] = useState(false);
 
     const fylteSlots = slots.filter((s) => s.length > 0);
     const klar = mode === "en" ? enFiler.length > 0 : fylteSlots.length >= 2;
@@ -68,18 +118,20 @@ export default function Home() {
         setEnkelt(null);
         setDuell(null);
         try {
+            setGjenopprettet(false);
             if (mode === "en") {
                 const rapport = await analyserFiler(enFiler);
                 setEnkelt({ rapport, dokumenter: tilDokRefs(enFiler) });
+                lagreOkt({ mode: "en", enkelt: { rapport } });
             } else {
                 const resultater = await Promise.all(fylteSlots.map((f) => analyserFiler(f)));
-                setDuell(
-                    resultater.map((rapport, i) => ({
-                        navn: fylteSlots[i][0].name.replace(/\.pdf$/i, ""),
-                        rapport,
-                        dokumenter: tilDokRefs(fylteSlots[i]),
-                    }))
-                );
+                const navngitte = resultater.map((rapport, i) => ({
+                    navn: fylteSlots[i][0].name.replace(/\.pdf$/i, ""),
+                    rapport,
+                    dokumenter: tilDokRefs(fylteSlots[i]),
+                }));
+                setDuell(navngitte);
+                lagreOkt({ mode: "duell", duell: navngitte.map(({ navn, rapport }) => ({ navn, rapport })) });
             }
         } catch (e) {
             if (e instanceof TilgangFeil) {
@@ -100,7 +152,39 @@ export default function Home() {
         setEnkelt(null);
         setDuell(null);
         setError(null);
+        setGjenopprettet(false);
+        tømOkt(); // bevisst nullstilling – da skal heller ingenting gjenopprettes
     }
+
+    // Gjenopprett forrige analyse ved sidelasting. Kjører kun én gang, og bare
+    // hvis brukeren ikke allerede har et resultat på skjermen.
+    useEffect(() => {
+        const lagret = lesOkt();
+        if (!lagret) return;
+        if (lagret.mode === "en" && lagret.enkelt) {
+            setMode("en");
+            setEnkelt({ rapport: lagret.enkelt.rapport, dokumenter: [] });
+            setGjenopprettet(true);
+        } else if (lagret.mode === "duell" && lagret.duell?.length) {
+            setMode("duell");
+            setDuell(lagret.duell.map((b) => ({ ...b, dokumenter: [] })));
+            setGjenopprettet(true);
+        }
+    }, []);
+
+    // Advar før siden forlates mens et resultat er på skjermen. Nettleseren
+    // viser sin egen standardtekst – egen tekst har ikke vært tillatt siden 2016.
+    // Vises ikke ved gjenopprettet analyse: den ligger allerede trygt i øktlageret.
+    const harUlagretResultat = (enkelt !== null || duell !== null) && !gjenopprettet;
+    useEffect(() => {
+        if (!harUlagretResultat && !loading) return;
+        const advar = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = "";
+        };
+        window.addEventListener("beforeunload", advar);
+        return () => window.removeEventListener("beforeunload", advar);
+    }, [harUlagretResultat, loading]);
 
     // PDF-eksport: lukkede accordioner ville gitt en nesten tom utskrift.
     // Åpner alle før utskrift og gjenoppretter tilstanden etterpå.
@@ -202,6 +286,13 @@ export default function Home() {
                         </div>
                     )}
                     {error && <div className="error">{error}</div>}
+                    {gjenopprettet && (
+                        <div className="gjenopprettet no-print">
+                            Analysen er hentet fram igjen etter at siden ble lastet på nytt.
+                            Kildehenvisningene vises som tekst — last opp PDF-en på nytt hvis du
+                            vil kunne klikke deg rett til riktig side.
+                        </div>
+                    )}
                     {trengerKode && (
                         <div className="kodeboks no-print">
                             <div className="kodetekst">
