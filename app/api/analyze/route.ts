@@ -30,6 +30,16 @@ export async function POST(request: Request) {
     // Tilgangskontroll (pilot): kode i header, rate-limit og dagskvote per kode.
     const tilgang = sjekkTilgang(request.headers.get("x-tilgangskode"));
     if (!tilgang.ok) {
+        // Tøm request-body FØR vi svarer. Svarer vi 401 mens nettleseren
+        // fortsatt laster opp en stor PDF, brytes forbindelsen – og klienten
+        // får en nettverksfeil ("Failed to fetch") i stedet for å lese svaret
+        // vårt og vise kodeboksen. Feilen viser seg kun på store filer, siden
+        // små opplastinger rekker å fullføre før avvisningen.
+        try {
+            await request.arrayBuffer();
+        } catch {
+            /* klienten kan ha lagt på allerede – da er det uansett ingenting å tømme */
+        }
         return NextResponse.json({ error: tilgang.feil }, { status: tilgang.status });
     }
 
