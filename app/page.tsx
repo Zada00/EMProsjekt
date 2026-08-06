@@ -19,7 +19,24 @@ async function analyserFiler(filer: File[]): Promise<Rapport> {
         body,
         headers: kode ? { "x-tilgangskode": kode } : {},
     });
-    const data = await res.json();
+    // Ikke alle svar er JSON. Hostingplattformen kan avvise forespørselen i
+    // kanten – f.eks. "Request Entity Too Large" som ren tekst – og da ga
+    // res.json() brukeren en uforståelig "Unexpected token 'R'"-feil.
+    const raatekst = await res.text();
+    let data: { error?: string; rapport?: Rapport };
+    try {
+        data = JSON.parse(raatekst);
+    } catch {
+        if (res.status === 413) {
+            throw new Error(
+                "Serveren avviste opplastingen fordi filen er for stor. Dette er en begrensning i hostingplattformen (Vercel tar imot maks 4,5 MB per forespørsel, uansett prisplan) – ikke i analysen selv."
+            );
+        }
+        throw new Error(
+            `Uventet svar fra serveren (${res.status}). ${raatekst.slice(0, 120).trim() || "Ingen detaljer."}`
+        );
+    }
+
     if (res.status === 401) throw new TilgangFeil(data.error ?? "Tilgangskode kreves.");
     if (!res.ok) throw new Error(data.error ?? "Noe gikk galt.");
     return data.rapport as Rapport;
