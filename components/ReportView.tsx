@@ -31,6 +31,39 @@ const KOSTNAD_NIVA: Record<string, { label: string; badge: string }> = {
     ukjent: { label: "Ukjent", badge: "" },
 };
 
+/**
+ * Tilstandsgradene forklart. Definisjonene er standard for norske
+ * tilstandsrapporter (NS 3600) og er like i alle rapporter – derfor fast tekst
+ * her, ikke noe modellen skal gjenfortelle for hver analyse.
+ */
+const TG_FORKLARING = [
+    { tg: "TG 0", farge: "var(--tg1)", tekst: "Ingen avvik. Bygningsdelen er som ny." },
+    { tg: "TG 1", farge: "var(--tg1)", tekst: "Mindre avvik. Normal slitasje for alderen, ingen tiltak nødvendig nå." },
+    { tg: "TG 2", farge: "var(--tg2)", tekst: "Vesentlig avvik. Alder, slitasje eller skader gjør at tiltak kan bli nødvendig, gjerne innen få år." },
+    { tg: "TG 3", farge: "var(--tg3)", tekst: "Stort eller alvorlig avvik. Takstmannen mener strakstiltak er nødvendig. Dette er det du bør undersøke først." },
+];
+
+export function TilstandsgradForklaring() {
+    return (
+        <details className="acc tg-forklaring">
+            <summary>Hva betyr tilstandsgradene?</summary>
+            <div className="tg-liste">
+                {TG_FORKLARING.map((t) => (
+                    <div key={t.tg} className={`tg-rad${t.tg === "TG 3" ? " tg-rad-alvorlig" : ""}`}>
+                        <span className="tg-prikk" style={{ background: t.farge }} />
+                        <strong>{t.tg}</strong>
+                        <span>{t.tekst}</span>
+                    </div>
+                ))}
+            </div>
+            <div className="notfound" style={{ marginTop: 10 }}>
+                Tilstandsgraden er takstmannens vurdering, ikke vår. Vi gjengir den som den står i
+                rapporten.
+            </div>
+        </details>
+    );
+}
+
 /** Enkel SVG-donut over risikofordelingen. Ingen biblioteker. */
 export function RisikoDonut({ hoy, mid, lav, kompakt }: { hoy: number; mid: number; lav: number; kompakt?: boolean }) {
     const total = hoy + mid + lav;
@@ -45,6 +78,7 @@ export function RisikoDonut({ hoy, mid, lav, kompakt }: { hoy: number; mid: numb
     let offset = 0;
     return (
         <div className={`donutboks${kompakt ? " kompakt" : ""}`} aria-label={`Risikofordeling: ${hoy} høy, ${mid} middels, ${lav} lav`}>
+            {!kompakt && <div className="donut-tittel">Hvor alvorlige er funnene?</div>}
             <svg width="92" height="92" viewBox="0 0 92 92" role="img">
                 <circle cx="46" cy="46" r={R} fill="none" stroke="var(--line)" strokeWidth="12" />
                 {deler.map((d, i) => {
@@ -69,13 +103,26 @@ export function RisikoDonut({ hoy, mid, lav, kompakt }: { hoy: number; mid: numb
                 </text>
             </svg>
             {!kompakt && (
-
                 <div className="donutlegende">
-                    {hoy > 0 && <span><i style={{ background: "var(--tg3)" }} /> {hoy} høy</span>}
-                    {mid > 0 && <span><i style={{ background: "var(--tg2)" }} /> {mid} middels</span>}
-                    {lav > 0 && <span><i style={{ background: "var(--tg1)" }} /> {lav} lav</span>}
+                    {/* Alvorlighet FØLGER tilstandsgraden (se normaliserAlvorlighet),
+                        så vi kan trygt vise koblingen. Da lærer kjøperen hva TG-ene
+                        betyr underveis, i stedet for å måtte slå det opp. */}
+                    {hoy > 0 && (
+                        <span className="legende-hoy">
+                            <i style={{ background: "var(--tg3)" }} /> {hoy} høy <em>TG3</em>
+                        </span>
+                    )}
+                    {mid > 0 && (
+                        <span>
+                            <i style={{ background: "var(--tg2)" }} /> {mid} middels <em>TG2</em>
+                        </span>
+                    )}
+                    {lav > 0 && (
+                        <span>
+                            <i style={{ background: "var(--tg1)" }} /> {lav} lav <em>TG0–1</em>
+                        </span>
+                    )}
                 </div>
-
             )}
             {kompakt && (
                 <div className="donutlegende-mini" aria-hidden="true">
@@ -265,6 +312,8 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 </div>
                 <RisikoDonut hoy={hoy} mid={mid} lav={lav} />
             </div>
+
+            {rapport.risikoer.length > 0 && <TilstandsgradForklaring />}
 
             <div className="section-head">
                 <div className="section-title">Ting å være obs på ({rapport.risikoer.length})</div>

@@ -714,6 +714,77 @@ a {
     padding: 16px;
 }
 
+/* Overskrift over donut-en – megleren savnet at grafikken sa hva den viser. */
+.donut-tittel {
+    width: 100%;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+
+/* TG-koden ved siden av alvorlighetsordet, dempet så den ikke stjeler fokus. */
+.donutlegende em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.8;
+    margin-left: 2px;
+}
+
+/* TG3 skal skille seg ut. Kjøperen skal se på ett blikk at dette er
+   en annen kategori enn resten – ikke bare en litt mørkere farge. */
+.donutlegende .legende-hoy {
+    font-weight: 650;
+    color: var(--tg3);
+}
+
+.donutlegende .legende-hoy em {
+    color: var(--tg3);
+    opacity: 1;
+}
+
+.tg-forklaring {
+    margin-top: 12px;
+}
+
+.tg-forklaring summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.tg-liste {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tg-rad {
+    display: grid;
+    grid-template-columns: 12px 46px 1fr;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.tg-rad-alvorlig {
+    padding: 6px 8px;
+    margin-left: -8px;
+    border-radius: 6px;
+    background: var(--surface);
+    font-weight: 500;
+}
+
+.tg-prikk {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    align-self: center;
+}
+
 /* Planløsning og godkjenning. Nøytral som standard – "ikke vurdert" er
    informasjon, ikke en advarsel. Rød kant først når et avvik faktisk står
    beskrevet i dokumentet. */
