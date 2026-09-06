@@ -71,6 +71,31 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("visningsspørsmål", () => {
+  const medSporsmal = (q: unknown[]) =>
+    rapportSchema.parse({
+      dokumenttype: "salgsoppgave", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: q, mulige_kostnader: [], ikke_funnet: [],
+    });
+
+  it("leser spørsmål med tema", () => {
+    const r = medSporsmal([{ sporsmal: "Er fukten i boden undersøkt?", tema: "Tilstand og avvik" }]);
+    expect(r.sporsmal_til_visning[0].tema).toBe("tilstand og avvik");
+  });
+
+  it("tåler gammelt format der spørsmålene var rene strenger", () => {
+    // Lagrede analyser fra før temaene fantes skal overleve en oppgradering.
+    const r = medSporsmal(["Hva dekker felleskostnadene?"]);
+    expect(r.sporsmal_til_visning[0].sporsmal).toBe("Hva dekker felleskostnadene?");
+    expect(r.sporsmal_til_visning[0].tema).toBe("annet");
+  });
+
+  it("faller tilbake til 'annet' ved ukjent tema", () => {
+    expect(medSporsmal([{ sporsmal: "x", tema: "nabolag" }]).sporsmal_til_visning[0].tema).toBe("annet");
+  });
+});
+
 describe("økonomi etter boligtype", () => {
   const med = (felt: object) =>
     rapportSchema.parse({

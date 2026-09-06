@@ -739,6 +739,26 @@ a {
     padding: 16px;
 }
 
+/* Visningsspørsmål gruppert etter tema – en sjekkliste, ikke en tekstvegg. */
+.qintro {
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+.qgruppe + .qgruppe {
+    margin-top: 18px;
+}
+
+.qtema {
+    margin-bottom: 8px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
 /* Parkeringsvilkår – lett å overse, dyrt å oppdage etter budet. */
 .parkering-vilkar {
     margin-top: 10px;

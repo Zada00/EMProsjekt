@@ -125,6 +125,40 @@ export const etasjeSchema = z.object({
 });
 
 /**
+ * Temaene visningsspørsmålene grupperes under. Egen liste, ikke KATEGORIER:
+ * megleren ba om at spørsmålene dekker kostnader, planløsning, parkering og
+ * fellesutgifter – forhold som ikke er "områder i boligen", men som avgjør
+ * hva kjøperen bør spørre om.
+ */
+export const SPORSMAL_TEMA = [
+    "tilstand og avvik",
+    "kostnader",
+    "bad og våtrom",
+    "kjøkken",
+    "planløsning og godkjenning",
+    "parkering",
+    "energi og oppvarming",
+    "økonomi og fellesutgifter",
+    "dokumentasjon",
+    "annet",
+] as const;
+
+/**
+ * Tåler at modellen leverer en ren streng, slik formatet var før temaene kom.
+ * Da overlever eldre lagrede analyser en oppgradering i stedet for å bli borte.
+ */
+const spoersmaalFraStreng = (v: unknown) =>
+    typeof v === "string" ? { sporsmal: v, tema: "annet" } : v;
+
+export const sporsmalSchema = z.preprocess(
+    spoersmaalFraStreng,
+    z.object({
+        sporsmal: z.string(),
+        tema: z.preprocess(smaaBokstaver, z.enum(SPORSMAL_TEMA)).catch("annet"),
+    })
+);
+
+/**
  * Økonomi. Hvilke felter som er relevante avhenger av eierformen: en enebolig
  * har kommunale avgifter og ingen felleskostnader, en leilighet i sameie har
  * begge deler. Vi lar modellen sette null på det som ikke gjelder, og UI-et
@@ -272,7 +306,7 @@ export const rapportSchema = z.object({
         .preprocess(smaaBokstaver, z.enum(["avvik", "ingen avvik", "ikke vurdert"]))
         .catch("ikke vurdert"),
     planlosning_avvik: z.array(planlosningAvvikSchema).catch([]),
-    sporsmal_til_visning: z.array(z.string()),
+    sporsmal_til_visning: z.array(sporsmalSchema),
     mulige_kostnader: z.array(kostnadSchema),
     ikke_funnet: z.array(z.string()),
 });
@@ -565,8 +599,19 @@ export const rapportJsonSchema = {
         sporsmal_til_visning: {
             type: "array",
             description:
-                "Konkrete spørsmål kjøperen bør stille megler eller selger på visning, basert på det som er uklart eller bekymringsverdig i dokumentet.",
-            items: { type: "string" },
+                "En praktisk sjekkliste kjøperen kan ta med på visning. Spørsmålene skal springe ut av DETTE dokumentet – TG2- og TG3-funnene, de mulige kostnadene, bad og kjøkken, planløsning og godkjenninger, parkering, oppvarming, og fellesutgifter der det er relevant. Tilpass etter boligtype og eierform: spør om drenering og tomt for enebolig, om fellesgjeld og vedtatte prosjekter for leilighet i sameie eller borettslag. Ikke gjenta spørsmål du allerede har lagt under en kostnadspost.",
+            items: {
+                type: "object",
+                properties: {
+                    sporsmal: { type: "string", description: "Selve spørsmålet, formulert slik kjøperen kan stille det direkte." },
+                    tema: {
+                        type: "string",
+                        enum: [...SPORSMAL_TEMA],
+                        description: "Hva spørsmålet handler om, slik at sjekklisten kan grupperes.",
+                    },
+                },
+                required: ["sporsmal", "tema"],
+            },
         },
         mulige_kostnader: {
             type: "array",

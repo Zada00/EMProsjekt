@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FREMHEVEDE_KATEGORIER, KATEGORIER, type Rapport, type Risiko } from "@/lib/schema";
+import { FREMHEVEDE_KATEGORIER, KATEGORIER, SPORSMAL_TEMA, type Rapport, type Risiko } from "@/lib/schema";
 
 /** Referanse til en opplastet PDF (for klikkbare kilder). */
 export type DokRef = { name: string; url: string };
@@ -505,6 +505,17 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
             .filter((g) => g.funn.length > 0);
     }, [rapport.risikoer]);
 
+    // Sjekklisten grupperes etter tema, i den rekkefølgen temaene er definert –
+    // tilstand og kostnader først, småting til slutt.
+    const sporsmalGrupper = useMemo(
+        () =>
+            SPORSMAL_TEMA.map((tema) => ({
+                tema,
+                sporsmal: rapport.sporsmal_til_visning.filter((q) => q.tema === tema),
+            })).filter((g) => g.sporsmal.length > 0),
+        [rapport.sporsmal_til_visning]
+    );
+
     return (
         <div className="report">
             <div className="report-head">
@@ -734,12 +745,23 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 ender i noe kjøperen kan ta med seg på visning. */}
             {rapport.sporsmal_til_visning.length > 0 && (
                 <>
-                    <div className="section-title">Spørsmål å stille på visning</div>
-                    <div className="qlist">
-                        {rapport.sporsmal_til_visning.map((q, i) => (
-                            <div key={i} className="qitem">{q}</div>
-                        ))}
+                    <div className="section-title">
+                        Spørsmål å stille på visning ({rapport.sporsmal_til_visning.length})
                     </div>
+                    <div className="qintro">
+                        Ta med denne listen på visning. Spørsmålene er hentet fra det som faktisk
+                        står i dokumentene for nettopp denne boligen.
+                    </div>
+                    {sporsmalGrupper.map(({ tema, sporsmal }) => (
+                        <div key={tema} className="qgruppe">
+                            <div className="qtema">{storForbokstav(tema)}</div>
+                            <div className="qlist">
+                                {sporsmal.map((q, i) => (
+                                    <div key={i} className="qitem">{q.sporsmal}</div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </>
             )}
 
