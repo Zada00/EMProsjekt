@@ -19,9 +19,13 @@ cp .env.example .env.local      # og lim inn ANTHROPIC_API_KEY
 npm run dev                      # http://localhost:3000
 ```
 
-Hent API-nøkkel på https://console.anthropic.com. Standardmodell er `claude-sonnet-4-6`
-(billig, Opus-nær). Bytt til `claude-opus-4-8` via `ANTHROPIC_MODEL` i `.env.local` hvis en
-rapport er vanskelig/utydelig.
+Hent API-nøkkel på https://console.anthropic.com. Standardmodell er `claude-sonnet-5`.
+Bytt til `claude-opus-5` via `ANTHROPIC_MODEL` i `.env.local` hvis en rapport er
+vanskelig eller utydelig.
+
+Ved modellbytte: oppdater prisene i `lib/kostnad.ts` (eller sett `PRIS_INPUT_USD` og
+`PRIS_OUTPUT_USD` i `.env.local`), og kjør fasiten på nytt. En ny modell er en like stor
+endring som en ny prompt.
 
 ### Test med ekte data
 Last ned 5–10 tilstandsrapporter fra FINN.no, legg dem i en mappe `testdata/` (allerede
