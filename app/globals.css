@@ -714,6 +714,17 @@ a {
     padding: 16px;
 }
 
+/* Parkeringsvilkår – lett å overse, dyrt å oppdage etter budet. */
+.parkering-vilkar {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--tg2);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
 /* Egenerklæringen: viktig, men selgers egne ord. Introen sier begge deler. */
 .egenerklaering-intro {
     margin-bottom: 12px;

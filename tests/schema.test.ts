@@ -71,6 +71,29 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("parkering", () => {
+  const med = (felt: object) =>
+    rapportSchema.parse({
+      dokumenttype: "salgsoppgave", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+      ...felt,
+    });
+
+  it("skiller 'ingen' fra 'ikke opplyst'", () => {
+    // "det følger ikke parkering med" er en opplysning; taushet er det ikke.
+    expect(med({ parkering: { type: "ingen", beskrivelse: null, vilkar: null, kilde: "s. 2" } }).parkering.type).toBe("ingen");
+    expect(med({}).parkering.type).toBe("ikke opplyst");
+  });
+
+  it("beholder vilkår, som er det viktigste feltet", () => {
+    const r = med({
+      parkering: { type: "felles", beskrivelse: "Én plass i garasjekjeller", vilkar: "Plassen leies av sameiet og følger ikke boligen ved salg", kilde: "s. 4" },
+    });
+    expect(r.parkering.vilkar).toContain("leies av sameiet");
+  });
+});
+
 describe("selgers egenerklæring", () => {
   const med = (felt: object) =>
     rapportSchema.parse({

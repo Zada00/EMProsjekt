@@ -125,6 +125,24 @@ export const etasjeSchema = z.object({
 });
 
 /**
+ * Parkering. Alltid til stede med "ikke opplyst" som standard, slik at UI-et
+ * slipper null-sjekker – og slik at fraværet av opplysning blir synlig i stedet
+ * for at feltet bare forsvinner.
+ *
+ * "vilkar" er det viktigste her: en plass som leies av sameiet, ikke følger
+ * boligen, eller er tinglyst som bruksrett, er noe helt annet enn en plass man
+ * eier. Megleren ba spesifikt om at slike forhold fremheves.
+ */
+export const parkeringSchema = z.object({
+    type: z
+        .preprocess(smaaBokstaver, z.enum(["privat", "garasje", "carport", "felles", "gateparkering", "ingen", "ikke opplyst"]))
+        .catch("ikke opplyst"),
+    beskrivelse: z.string().nullable().catch(null),
+    vilkar: z.string().nullable().catch(null),
+    kilde: z.string().nullable().catch(null),
+});
+
+/**
  * Punkt fra selgers egenerklæring.
  *
  * Gjenbruker KATEGORIER med vilje: kjøperen møter samme områdeinndeling her som
@@ -170,6 +188,7 @@ export const rapportSchema = z.object({
     antall_rom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
     antall_soverom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
     etasjer: z.array(etasjeSchema).catch([]),
+    parkering: parkeringSchema.catch({ type: "ikke opplyst", beskrivelse: null, vilkar: null, kilde: null }),
     sammendrag: z.string(), // 3-6 setninger prosa på vanlig norsk, til en kjøper
     dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
@@ -283,6 +302,28 @@ export const rapportJsonSchema = {
         },
         antall_rom: { type: ["integer", "null"], description: "Antall rom totalt, hvis oppgitt." },
         antall_soverom: { type: ["integer", "null"], description: "Antall soverom, hvis oppgitt." },
+        parkering: {
+            type: "object",
+            description: "Parkering hører til det kjøperen sjekker først. Sett type til 'ikke opplyst' hvis dokumentet ikke sier noe.",
+            properties: {
+                type: {
+                    type: "string",
+                    enum: ["privat", "garasje", "carport", "felles", "gateparkering", "ingen", "ikke opplyst"],
+                    description: "Hovedformen for parkering. 'felles' = fellesanlegg i sameie/borettslag, 'ingen' = dokumentet sier eksplisitt at det ikke følger parkering med.",
+                },
+                beskrivelse: {
+                    type: ["string", "null"],
+                    description: "Kort utfyllende tekst, f.eks. 'Én plass i felles garasjeanlegg i kjeller'.",
+                },
+                vilkar: {
+                    type: ["string", "null"],
+                    description:
+                        "Spesielle vilkår eller rettigheter – f.eks. at plassen leies og ikke eies, at den er tinglyst som bruksrett, at den fordeles av styret, eller at den ikke følger med boligen. Dette er ofte det viktigste for kjøperen. Null hvis ingen slike forhold er nevnt.",
+                },
+                kilde: { type: ["string", "null"] },
+            },
+            required: ["type", "beskrivelse", "vilkar", "kilde"],
+        },
         etasjer: {
             type: "array",
             description:
@@ -460,6 +501,7 @@ export const rapportJsonSchema = {
         "antall_rom",
         "antall_soverom",
         "etasjer",
+        "parkering",
         "sammendrag",
         "risikoer",
         "egenerklaering_status",

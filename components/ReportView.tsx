@@ -185,6 +185,15 @@ const DOKTYPE_NAVN: Record<string, string> = {
 
 const storForbokstav = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+const PARKERING_NAVN: Record<string, string> = {
+    "privat": "Privat plass",
+    "garasje": "Garasje",
+    "carport": "Carport",
+    "felles": "Felles anlegg",
+    "gateparkering": "Gateparkering",
+    "ingen": "Følger ikke med",
+};
+
 /** Visningsnavn for arealtypene. Forkortelsene alene sier ingenting til en kjøper. */
 const AREAL_NAVN: Record<string, string> = {
     "bra": "Bruksareal (BRA)",
@@ -403,7 +412,35 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 />
                 <Fact label="Rom" value={rapport.antall_rom?.toString()} />
                 <Fact label="Soverom" value={rapport.antall_soverom?.toString()} />
+                <Fact
+                    label="Parkering"
+                    value={
+                        rapport.parkering.type === "ikke opplyst"
+                            ? null
+                            : PARKERING_NAVN[rapport.parkering.type] ?? rapport.parkering.type
+                    }
+                />
             </div>
+
+            {/* Vilkårene er poenget: en plass som leies eller ikke følger boligen
+                er noe helt annet enn en man eier. Derfor egen, markert linje. */}
+            {rapport.parkering.vilkar && (
+                <div className="parkering-vilkar">
+                    <span className="anslag-merke">Merk om parkering</span>
+                    {rapport.parkering.vilkar}
+                    {rapport.parkering.kilde && (
+                        <button
+                            className="kilde kildeknapp"
+                            onClick={() => aapneKilde(rapport.parkering.kilde!, dokumenter)}
+                        >
+                            {rapport.parkering.kilde} ↗
+                        </button>
+                    )}
+                </div>
+            )}
+            {rapport.parkering.beskrivelse && !rapport.parkering.vilkar && (
+                <div className="notfound">{rapport.parkering.beskrivelse}</div>
+            )}
 
             {rapport.areal_detaljer.length > 0 && (
                 <details className="acc arealboks">
