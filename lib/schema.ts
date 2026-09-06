@@ -544,7 +544,7 @@ export const rapportJsonSchema = {
             type: "string",
             enum: ["opplysninger funnet", "ingen opplysninger", "ikke vedlagt"],
             description:
-                "Er selgers egenerklæringsskjema med i dokumentene? 'opplysninger funnet' = skjemaet finnes og selger har opplyst om noe. 'ingen opplysninger' = skjemaet finnes, men selger har ikke krysset av for noe av betydning. 'ikke vedlagt' = skjemaet er ikke med. Bruk 'ikke vedlagt' når du er i tvil – at selger ikke har opplyst noe er noe helt annet enn at ingen har spurt.",
+                "Er selgers egenerklæringsskjema med i dokumentene? Du må SE skjemaet for å velge noe annet enn 'ikke vedlagt': en overskrift som 'Egenerklæring' eller 'Selgers egenerklæring', eller nummererte spørsmål besvart av selger. Ser du ikke skjemaet – f.eks. i en ren boligsalgsrapport fra en takstmann – er svaret 'ikke vedlagt', uansett hvor lite selger ellers har opplyst. 'opplysninger funnet' = skjemaet er der og selger har opplyst noe. 'ingen opplysninger' = skjemaet er der, men er tomt for forhold av betydning.",
         },
         egenerklaering: {
             type: "array",
