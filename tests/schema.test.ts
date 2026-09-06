@@ -71,6 +71,35 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("selgers egenerklæring", () => {
+  const med = (felt: object) =>
+    rapportSchema.parse({
+      dokumenttype: "salgsoppgave", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+      ...felt,
+    });
+
+  it("skiller 'ingen opplysninger' fra 'ikke vedlagt'", () => {
+    expect(med({ egenerklaering_status: "ingen opplysninger" }).egenerklaering_status).toBe("ingen opplysninger");
+    expect(med({ egenerklaering_status: "ikke vedlagt" }).egenerklaering_status).toBe("ikke vedlagt");
+  });
+
+  it("faller tilbake til 'ikke vedlagt', aldri til 'ingen opplysninger'", () => {
+    expect(med({}).egenerklaering_status).toBe("ikke vedlagt");
+    expect(med({ egenerklaering_status: "vet ikke" }).egenerklaering_status).toBe("ikke vedlagt");
+  });
+
+  it("bruker samme kategorier som avvikene", () => {
+    const r = med({
+      egenerklaering_status: "opplysninger funnet",
+      egenerklaering: [{ kategori: "Bad og våtrom", type: "Utbedret", hva: "Nytt bad i 2021", kilde: "s. 3" }],
+    });
+    expect(r.egenerklaering[0].kategori).toBe("bad og våtrom");
+    expect(r.egenerklaering[0].type).toBe("utbedret");
+  });
+});
+
 describe("areal og romfordeling", () => {
   const med = (felt: object) =>
     rapportSchema.parse({

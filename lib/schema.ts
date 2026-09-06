@@ -125,6 +125,25 @@ export const etasjeSchema = z.object({
 });
 
 /**
+ * Punkt fra selgers egenerklæring.
+ *
+ * Gjenbruker KATEGORIER med vilje: kjøperen møter samme områdeinndeling her som
+ * i tilstandsrapporten, og kan dermed selv koble "selger har utbedret badet" mot
+ * "TG2 på membranen i badet". To ulike ordforråd ville skjult den sammenhengen.
+ *
+ * Egenerklæringen er selgers EGNE ord, ikke en fagvurdering. Det skal frem i
+ * UI-et, slik at kjøperen vekter den deretter.
+ */
+export const egenerklaeringSchema = z.object({
+    kategori: z.preprocess(smaaBokstaver, z.enum(KATEGORIER)).catch("annet"),
+    type: z
+        .preprocess(smaaBokstaver, z.enum(["oppdaget", "utbedret", "tidligere hendelse", "annet"]))
+        .catch("annet"),
+    hva: z.string(),
+    kilde: z.string().nullable().catch(null),
+});
+
+/**
  * Avvik mellom godkjente byggetegninger og faktisk planløsning.
  *
  * Juridisk sensitivt: å fortelle en kjøper at noe kan være ulovlig er en sterk
@@ -160,6 +179,15 @@ export const rapportSchema = z.object({
      * er noe HELT annet enn at tegningene stemmer. Sandvika-rapporten er
      * nettopp det første. Faller tilbake til "ikke vurdert" – det forsiktige.
      */
+    /**
+     * Samme tredeling som planløsning, og av samme grunn: "selger har ikke
+     * opplyst om noe" og "skjemaet er ikke vedlagt" må ikke se likt ut for
+     * kjøperen. Faller tilbake til "ikke vedlagt" – det forsiktige.
+     */
+    egenerklaering_status: z
+        .preprocess(smaaBokstaver, z.enum(["opplysninger funnet", "ingen opplysninger", "ikke vedlagt"]))
+        .catch("ikke vedlagt"),
+    egenerklaering: z.array(egenerklaeringSchema).catch([]),
     planlosning_status: z
         .preprocess(smaaBokstaver, z.enum(["avvik", "ingen avvik", "ikke vurdert"]))
         .catch("ikke vurdert"),
@@ -321,6 +349,36 @@ export const rapportJsonSchema = {
                 required: ["tittel", "forklaring", "alvorlighet", "kategori", "tg", "kostnadsanslag", "kilde"],
             },
         },
+        egenerklaering_status: {
+            type: "string",
+            enum: ["opplysninger funnet", "ingen opplysninger", "ikke vedlagt"],
+            description:
+                "Er selgers egenerklæringsskjema med i dokumentene? 'opplysninger funnet' = skjemaet finnes og selger har opplyst om noe. 'ingen opplysninger' = skjemaet finnes, men selger har ikke krysset av for noe av betydning. 'ikke vedlagt' = skjemaet er ikke med. Bruk 'ikke vedlagt' når du er i tvil – at selger ikke har opplyst noe er noe helt annet enn at ingen har spurt.",
+        },
+        egenerklaering: {
+            type: "array",
+            description:
+                "Punkter fra selgers egenerklæring, oppsummert på vanlig norsk. Dette er selgers EGNE opplysninger om boligens historikk – ofte det viktigste dokumentet for å forstå hva som har skjedd med boligen. Tom liste hvis skjemaet ikke er vedlagt.",
+            items: {
+                type: "object",
+                properties: {
+                    kategori: {
+                        type: "string",
+                        enum: [...KATEGORIER],
+                        description: "Samme områdeinndeling som for avvikene, slik at kjøperen kan koble opplysningene sammen.",
+                    },
+                    type: {
+                        type: "string",
+                        enum: ["oppdaget", "utbedret", "tidligere hendelse", "annet"],
+                        description:
+                            "'oppdaget' = selger kjenner til et forhold, 'utbedret' = selger har gjort noe med det, 'tidligere hendelse' = noe har skjedd før (lekkasje, brann, skadedyr), 'annet' = øvrige opplysninger.",
+                    },
+                    hva: { type: "string", description: "Hva selger faktisk opplyser, gjengitt kort og nøytralt." },
+                    kilde: { type: ["string", "null"] },
+                },
+                required: ["kategori", "type", "hva", "kilde"],
+            },
+        },
         planlosning_status: {
             type: "string",
             enum: ["avvik", "ingen avvik", "ikke vurdert"],
@@ -404,6 +462,8 @@ export const rapportJsonSchema = {
         "etasjer",
         "sammendrag",
         "risikoer",
+        "egenerklaering_status",
+        "egenerklaering",
         "planlosning_status",
         "planlosning_avvik",
         "sporsmal_til_visning",

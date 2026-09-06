@@ -215,6 +215,85 @@ const PLANLOSNING_KONSEKVENSER = [
     "Samlet kan dette bli en betydelig kostnad, og den bærer du som kjøper.",
 ];
 
+const EGENERKLAERING_TYPE: Record<string, string> = {
+    "oppdaget": "Selger kjenner til",
+    "utbedret": "Selger har utbedret",
+    "tidligere hendelse": "Tidligere hendelse",
+    "annet": "Opplyst",
+};
+
+/**
+ * Selgers egenerklæring, gruppert per område og utvidbar per gruppe.
+ *
+ * Megleren kaller dette et av de viktigste dokumentene for å forstå boligens
+ * historikk, og det stemmer: det er her lekkasjer og utbedringer selger kjenner
+ * til faktisk står. Men det er selgers EGNE ord, ikke en fagvurdering – og det
+ * sier vi rett ut, så kjøperen vekter det deretter.
+ */
+function EgenerklaeringSeksjon({
+    status,
+    punkter,
+    dokumenter,
+}: {
+    status: Rapport["egenerklaering_status"];
+    punkter: Rapport["egenerklaering"];
+    dokumenter: DokRef[];
+}) {
+    const grupper = useMemo(() => {
+        return KATEGORIER.map((kategori) => ({
+            kategori,
+            funn: punkter.filter((p) => p.kategori === kategori),
+        })).filter((g) => g.funn.length > 0);
+    }, [punkter]);
+
+    return (
+        <>
+            <div className="section-title">Sammendrag av selgers egenerklæring</div>
+            <div className="egenerklaering-intro">
+                Egenerklæringen er selgers egne opplysninger om boligen — ofte det viktigste
+                dokumentet for å forstå hva som faktisk har skjedd med den. Merk at dette er
+                selgers ord, ikke en fagperson sin vurdering.
+            </div>
+
+            {status === "ikke vedlagt" && (
+                <div className="notfound">
+                    Egenerklæringsskjemaet er ikke vedlagt dokumentene. Be megler om det — det er
+                    et av de mest opplysende dokumentene i en bolighandel.
+                </div>
+            )}
+            {status === "ingen opplysninger" && (
+                <div className="notfound">
+                    Skjemaet er vedlagt, men selger har ikke opplyst om forhold av betydning.
+                </div>
+            )}
+
+            {grupper.map(({ kategori, funn }) => (
+                <details key={kategori} className="acc">
+                    <summary>
+                        <span className="tg-badge">{storForbokstav(kategori)}</span>
+                        <span className="acc-antall">{funn.length} opplysning{funn.length === 1 ? "" : "er"}</span>
+                    </summary>
+                    {funn.map((p, i) => (
+                        <div key={i} className="avvik">
+                            <div className="top">
+                                <span className="egen-type">{EGENERKLAERING_TYPE[p.type] ?? "Opplyst"}</span>
+                            </div>
+                            <div className="desc">{p.hva}</div>
+                            {p.kilde && (
+                                <div className="kildelinje">
+                                    <button className="kilde kildeknapp" onClick={() => aapneKilde(p.kilde!, dokumenter)}>
+                                        {p.kilde} ↗
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </details>
+            ))}
+        </>
+    );
+}
+
 function PlanlosningSeksjon({
     status,
     avvik,
@@ -430,6 +509,12 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                           </details>
                       );
                   })}
+
+            <EgenerklaeringSeksjon
+                status={rapport.egenerklaering_status}
+                punkter={rapport.egenerklaering}
+                dokumenter={dokumenter}
+            />
 
             <PlanlosningSeksjon
                 status={rapport.planlosning_status}

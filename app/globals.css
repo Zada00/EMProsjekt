@@ -714,6 +714,23 @@ a {
     padding: 16px;
 }
 
+/* Egenerklæringen: viktig, men selgers egne ord. Introen sier begge deler. */
+.egenerklaering-intro {
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+.egen-type {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--line);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
 /* Areal og romfordeling – utvidbart, så nøkkelinfoen holder seg kort. */
 .arealboks {
     margin-top: 10px;
