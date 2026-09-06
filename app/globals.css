@@ -597,15 +597,40 @@ a {
             display: none;
         }
 
+        /* Utvid-indikatoren. Megleren fant den vanskelig å oppdage – den var
+           14 px og grå. Nå en tydelig sirkel med kontrast, så det leses som en
+           kontroll man kan trykke på, ikke som dekor. */
         .acc summary::after {
             content: "▾";
             margin-left: auto;
-            color: var(--muted);
-            transition: transform 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            flex: 0 0 26px;
+            border: 1px solid var(--line);
+            border-radius: 50%;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 15px;
+            line-height: 1;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
         }
 
     .acc:not([open]) summary::after {
         transform: rotate(-90deg);
+    }
+
+    .acc summary:hover::after {
+        border-color: var(--muted);
+        background: var(--line);
+    }
+
+    /* Hele raden reagerer på hover, ikke bare ikonet – da er det tydelig at
+       overskriften i seg selv er klikkbar. */
+    .acc summary:hover {
+        color: var(--text);
     }
 
 .acc-antall {

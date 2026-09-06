@@ -593,7 +593,9 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 </details>
             )}
 
-            <div className="section-title">Boligen forklart</div>
+            {/* Het "Boligen forklart" som overskriften øverst – to like titler
+                på samme side gjør det uklart hva som er hva. */}
+            <div className="section-title">Kort oppsummert</div>
             <div className="summary">{rapport.sammendrag}</div>
 
             <div className="oversikt">
@@ -681,17 +683,6 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 dokumenter={dokumenter}
             />
 
-            {rapport.sporsmal_til_visning.length > 0 && (
-                <>
-                    <div className="section-title">Spørsmål å stille på visning</div>
-                    <div className="qlist">
-                        {rapport.sporsmal_til_visning.map((q, i) => (
-                            <div key={i} className="qitem">{q}</div>
-                        ))}
-                    </div>
-                </>
-            )}
-
             {rapport.mulige_kostnader.length > 0 && (
                 <>
                     <div className="section-title">Mulige fremtidige kostnader</div>
@@ -734,6 +725,20 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                     })}
                     <div className="notfound">
                         Grov skala, ikke priser. Innhent tilbud fra fagfolk for reelle tall.
+                    </div>
+                </>
+            )}
+
+            {/* Spørsmålene sist: de bygger på alt over – funn, kostnader,
+                planløsning og økonomi. Da leser siden som en fortelling som
+                ender i noe kjøperen kan ta med seg på visning. */}
+            {rapport.sporsmal_til_visning.length > 0 && (
+                <>
+                    <div className="section-title">Spørsmål å stille på visning</div>
+                    <div className="qlist">
+                        {rapport.sporsmal_til_visning.map((q, i) => (
+                            <div key={i} className="qitem">{q}</div>
+                        ))}
                     </div>
                 </>
             )}
