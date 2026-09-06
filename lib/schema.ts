@@ -99,6 +99,32 @@ export const kostnadSchema = z.object({
 });
 
 /**
+ * Arealtyper i norske boligdokumenter. Faste nøkler, ikke fritekst – da kan
+ * arealene sammenlignes mellom boliger i duellvisningen, og UI-et kan bestemme
+ * rekkefølge og visningsnavn ett sted.
+ *
+ * BRA-i/-e/-b kom med arealstandarden fra 2024; P-rom og S-rom brukes fortsatt
+ * i eldre rapporter. Vi støtter begge, siden dokumentene i markedet er blandet.
+ */
+export const AREALTYPER = ["bra", "bra-i", "bra-e", "bra-b", "tba", "p-rom", "s-rom", "bta", "tomt"] as const;
+export type Arealtype = (typeof AREALTYPER)[number];
+
+export const arealSchema = z.object({
+    type: z.preprocess(smaaBokstaver, z.enum(AREALTYPER)),
+    m2: z.preprocess(tallFraTekst, z.number()),
+    kilde: z.string().nullable().catch(null),
+});
+
+/**
+ * Én etasje med rommene i den. Svarer på meglerens ønske om at kjøperen raskt
+ * skal forstå hvordan boligen faktisk er bygget opp – ikke bare hvor stor den er.
+ */
+export const etasjeSchema = z.object({
+    navn: z.string(), // "1. etasje", "Kjeller", "Loft"
+    rom: z.array(z.string()).catch([]), // "stue", "kjøkken", "bod"
+});
+
+/**
  * Avvik mellom godkjente byggetegninger og faktisk planløsning.
  *
  * Juridisk sensitivt: å fortelle en kjøper at noe kan være ulovlig er en sterk
@@ -119,7 +145,12 @@ export const rapportSchema = z.object({
     ).catch("annet"), // hva vurderingen bygger på – avgjør hvor "komplett" analysen kan være
     boligtype: z.string().nullable(),
     byggeaar: z.preprocess(heltallFraTekst, z.number().int().nullable()),
-    bruksareal_bra_m2: z.preprocess(tallFraTekst, z.number().nullable()),
+    bruksareal_bra_m2: z.preprocess(tallFraTekst, z.number().nullable()), // hovedtallet, vist i nøkkelinfo
+    // Full arealoppdeling – vises når kjøperen åpner arealet.
+    areal_detaljer: z.array(arealSchema).catch([]),
+    antall_rom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    antall_soverom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    etasjer: z.array(etasjeSchema).catch([]),
     sammendrag: z.string(), // 3-6 setninger prosa på vanlig norsk, til en kjøper
     dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
@@ -201,7 +232,41 @@ export const rapportJsonSchema = {
         byggeaar: { type: ["integer", "null"], description: "Byggeår som tall." },
         bruksareal_bra_m2: {
             type: ["number", "null"],
-            description: "Bruksareal (BRA) i kvadratmeter.",
+            description: "Samlet bruksareal (BRA) i kvadratmeter – hovedtallet kjøperen ser først.",
+        },
+        areal_detaljer: {
+            type: "array",
+            description:
+                "Alle arealtyper dokumentet oppgir, én oppføring per type. Ta med det som faktisk står – ikke regn om eller summer selv. Tom liste hvis kun ett areal er oppgitt.",
+            items: {
+                type: "object",
+                properties: {
+                    type: {
+                        type: "string",
+                        enum: [...AREALTYPER],
+                        description:
+                            "bra = samlet bruksareal, bra-i = internt bruksareal, bra-e = eksternt (f.eks. utvendig bod), bra-b = innglasset balkong, tba = terrasse/balkong, p-rom og s-rom = eldre standard, bta = bruttoareal, tomt = tomteareal.",
+                    },
+                    m2: { type: "number", description: "Areal i kvadratmeter." },
+                    kilde: { type: ["string", "null"] },
+                },
+                required: ["type", "m2", "kilde"],
+            },
+        },
+        antall_rom: { type: ["integer", "null"], description: "Antall rom totalt, hvis oppgitt." },
+        antall_soverom: { type: ["integer", "null"], description: "Antall soverom, hvis oppgitt." },
+        etasjer: {
+            type: "array",
+            description:
+                "Hvilke rom som ligger i hver etasje, slik kjøperen forstår hvordan boligen er bygget opp. F.eks. { navn: '1. etasje', rom: ['entré', 'bod', 'bad'] }. Tom liste hvis dokumentet ikke sier noe om romfordelingen.",
+            items: {
+                type: "object",
+                properties: {
+                    navn: { type: "string", description: "F.eks. '1. etasje', 'Kjeller', 'Loft'." },
+                    rom: { type: "array", items: { type: "string" }, description: "Rommene i etasjen." },
+                },
+                required: ["navn", "rom"],
+            },
         },
         sammendrag: {
             type: "string",
@@ -333,6 +398,10 @@ export const rapportJsonSchema = {
         "boligtype",
         "byggeaar",
         "bruksareal_bra_m2",
+        "areal_detaljer",
+        "antall_rom",
+        "antall_soverom",
+        "etasjer",
         "sammendrag",
         "risikoer",
         "planlosning_status",

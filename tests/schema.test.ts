@@ -71,6 +71,40 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("areal og romfordeling", () => {
+  const med = (felt: object) =>
+    rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+      ...felt,
+    });
+
+  it("normaliserer arealtype og tall fra tekst", () => {
+    const r = med({ areal_detaljer: [{ type: "BRA-i", m2: "99 m²", kilde: "s. 2" }] });
+    expect(r.areal_detaljer[0].type).toBe("bra-i");
+    expect(r.areal_detaljer[0].m2).toBe(99);
+  });
+
+  it("forkaster ukjent arealtype i stedet for å oppfinne en", () => {
+    // catch([]) på hele listen: hellere ingen arealoppdeling enn en gal en.
+    expect(med({ areal_detaljer: [{ type: "loftsareal", m2: 12, kilde: null }] }).areal_detaljer).toEqual([]);
+  });
+
+  it("leser etasjer med rom", () => {
+    const r = med({ etasjer: [{ navn: "1. etasje", rom: ["entré", "bod"] }] });
+    expect(r.etasjer[0].rom).toEqual(["entré", "bod"]);
+  });
+
+  it("tåler eldre svar uten areal, rom og etasjer", () => {
+    const r = med({});
+    expect(r.areal_detaljer).toEqual([]);
+    expect(r.etasjer).toEqual([]);
+    expect(r.antall_rom).toBeNull();
+    expect(r.antall_soverom).toBeNull();
+  });
+});
+
 describe("planløsning og godkjenning", () => {
   const med = (felt: object) =>
     rapportSchema.parse({

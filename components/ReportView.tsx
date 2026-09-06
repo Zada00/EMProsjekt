@@ -185,6 +185,19 @@ const DOKTYPE_NAVN: Record<string, string> = {
 
 const storForbokstav = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** Visningsnavn for arealtypene. Forkortelsene alene sier ingenting til en kjøper. */
+const AREAL_NAVN: Record<string, string> = {
+    "bra": "Bruksareal (BRA)",
+    "bra-i": "Innvendig areal (BRA-i)",
+    "bra-e": "Utvendig areal, f.eks. bod (BRA-e)",
+    "bra-b": "Innglasset balkong (BRA-b)",
+    "tba": "Terrasse og balkong",
+    "p-rom": "Primærrom (P-rom)",
+    "s-rom": "Sekundærrom (S-rom)",
+    "bta": "Bruttoareal (BTA)",
+    "tomt": "Tomt",
+};
+
 /**
  * Generelle konsekvenser av at planløsningen avviker fra godkjente tegninger.
  *
@@ -299,17 +312,57 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 </div>
             )}
 
+            {/* Nøkkelinformasjonen først: megleren var tydelig på at dette er
+                det brukeren skal se øverst, før den forklarende teksten. */}
+            <div className="section-title">Nøkkelinformasjon</div>
+            <div className="facts">
+                <Fact label="Boligtype" value={rapport.boligtype} />
+                <Fact label="Byggeår" value={rapport.byggeaar?.toString()} />
+                <Fact
+                    label="Bruksareal"
+                    value={rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : null}
+                />
+                <Fact label="Rom" value={rapport.antall_rom?.toString()} />
+                <Fact label="Soverom" value={rapport.antall_soverom?.toString()} />
+            </div>
+
+            {rapport.areal_detaljer.length > 0 && (
+                <details className="acc arealboks">
+                    <summary>Alle arealer ({rapport.areal_detaljer.length})</summary>
+                    <div className="areal-liste">
+                        {rapport.areal_detaljer.map((a, i) => (
+                            <div key={i} className="areal-rad">
+                                <span className="areal-navn">{AREAL_NAVN[a.type] ?? a.type}</span>
+                                <span className="areal-tall">{a.m2} m²</span>
+                                {a.kilde && (
+                                    <button className="kilde kildeknapp" onClick={() => aapneKilde(a.kilde!, dokumenter)}>
+                                        {a.kilde} ↗
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            )}
+
+            {rapport.etasjer.length > 0 && (
+                <details className="acc arealboks">
+                    <summary>Slik er boligen bygget opp</summary>
+                    <div className="etasje-liste">
+                        {rapport.etasjer.map((e, i) => (
+                            <div key={i} className="etasje-rad">
+                                <strong>{e.navn}</strong>
+                                <span>{e.rom.length > 0 ? e.rom.join(", ") : "ikke spesifisert"}</span>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            )}
+
+            <div className="section-title">Boligen forklart</div>
             <div className="summary">{rapport.sammendrag}</div>
 
             <div className="oversikt">
-                <div className="facts" style={{ flex: 1 }}>
-                    <Fact label="Boligtype" value={rapport.boligtype} />
-                    <Fact label="Byggeår" value={rapport.byggeaar?.toString()} />
-                    <Fact
-                        label="BRA"
-                        value={rapport.bruksareal_bra_m2 ? `${rapport.bruksareal_bra_m2} m²` : null}
-                    />
-                </div>
                 <RisikoDonut hoy={hoy} mid={mid} lav={lav} />
             </div>
 

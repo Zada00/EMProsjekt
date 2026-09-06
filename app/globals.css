@@ -714,6 +714,57 @@ a {
     padding: 16px;
 }
 
+/* Areal og romfordeling – utvidbart, så nøkkelinfoen holder seg kort. */
+.arealboks {
+    margin-top: 10px;
+}
+
+.arealboks summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.areal-liste,
+.etasje-liste {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.areal-rad {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+}
+
+.areal-rad:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.areal-navn {
+    color: var(--muted);
+}
+
+.areal-tall {
+    font-family: var(--mono);
+    font-size: 15px;
+}
+
+.etasje-rad {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
 /* Overskrift over donut-en – megleren savnet at grafikken sa hva den viser. */
 .donut-tittel {
     width: 100%;
