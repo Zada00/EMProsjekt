@@ -71,6 +71,38 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("planløsning og godkjenning", () => {
+  const med = (felt: object) =>
+    rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+      ...felt,
+    });
+
+  it("godtar de tre statusene", () => {
+    expect(med({ planlosning_status: "avvik" }).planlosning_status).toBe("avvik");
+    expect(med({ planlosning_status: "Ingen avvik" }).planlosning_status).toBe("ingen avvik");
+    expect(med({ planlosning_status: "ikke vurdert" }).planlosning_status).toBe("ikke vurdert");
+  });
+
+  it("faller tilbake til 'ikke vurdert' – aldri til 'ingen avvik'", () => {
+    // Det forsiktige valget: at ingen har sett etter er ikke det samme
+    // som at alt er i orden.
+    expect(med({}).planlosning_status).toBe("ikke vurdert");
+    expect(med({ planlosning_status: "tullball" }).planlosning_status).toBe("ikke vurdert");
+  });
+
+  it("leser avvik med rom og kilde", () => {
+    const r = med({
+      planlosning_status: "avvik",
+      planlosning_avvik: [{ hva: "Ikke godkjent for varig opphold", rom: "Kjellerstue", kilde: "s. 12" }],
+    });
+    expect(r.planlosning_avvik).toHaveLength(1);
+    expect(r.planlosning_avvik[0].rom).toBe("Kjellerstue");
+  });
+});
+
 describe("kategorisering av avvik", () => {
   const medRisiko = (r: object) =>
     rapportSchema.parse({

@@ -138,6 +138,83 @@ const DOKTYPE_NAVN: Record<string, string> = {
 
 const storForbokstav = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * Generelle konsekvenser av at planløsningen avviker fra godkjente tegninger.
+ *
+ * Fast tekst med vilje: dette er allmenne forhold i norsk byggesak, ikke noe
+ * som følger av det enkelte dokumentet. Ved å holde dem utenfor modellen får vi
+ * en ordlyd som kan kvalitetssikres én gang – og som ikke kan hallusineres.
+ * Alt er formulert som "kan", fordi det er det som er sant: utfallet avhenger
+ * av kommunen og det konkrete forholdet.
+ */
+const PLANLOSNING_KONSEKVENSER = [
+    "Kommunen kan kreve at forholdet søkes godkjent i ettertid.",
+    "En slik søknad koster penger, og det er ikke sikkert den blir innvilget.",
+    "I noen tilfeller kan kommunen kreve at rommet tilbakeføres til den godkjente løsningen.",
+    "Rom som ikke er godkjent for varig opphold, kan ikke regnes som primærrom (P-rom). Det påvirker både arealet du betaler for og hva banken vil låne deg.",
+    "Samlet kan dette bli en betydelig kostnad, og den bærer du som kjøper.",
+];
+
+function PlanlosningSeksjon({
+    status,
+    avvik,
+    dokumenter,
+}: {
+    status: Rapport["planlosning_status"];
+    avvik: Rapport["planlosning_avvik"];
+    dokumenter: DokRef[];
+}) {
+    if (status === "ingen avvik") return null; // ingenting å advare om
+
+    const harAvvik = status === "avvik" && avvik.length > 0;
+
+    return (
+        <>
+            <div className="section-title">Planløsning og godkjenning</div>
+            <div className={`planlosning${harAvvik ? " har-avvik" : ""}`}>
+                {harAvvik ? (
+                    <>
+                        <div className="planlosning-topp">
+                            Dokumentet beskriver at boligen avviker fra godkjente byggetegninger.
+                        </div>
+                        {avvik.map((a, i) => (
+                            <div key={i} className="planlosning-punkt">
+                                <div>
+                                    {a.rom && <strong>{a.rom}: </strong>}
+                                    {a.hva}
+                                </div>
+                                <button className="kilde kildeknapp" onClick={() => aapneKilde(a.kilde, dokumenter)}>
+                                    {a.kilde} ↗
+                                </button>
+                            </div>
+                        ))}
+                    </>
+                ) : (
+                    <div className="planlosning-topp">
+                        Det er ikke mulig å kontrollere om planløsningen er godkjent. Byggetegninger
+                        er ikke fremlagt, eller forholdet er ikke omtalt i dokumentet. Det betyr
+                        ikke at noe er galt — men det er ikke undersøkt.
+                    </div>
+                )}
+
+                <details className="acc planlosning-mer">
+                    <summary>Hva kan dette bety for deg?</summary>
+                    <ul>
+                        {PLANLOSNING_KONSEKVENSER.map((k, i) => (
+                            <li key={i}>{k}</li>
+                        ))}
+                    </ul>
+                    <div className="notfound" style={{ marginTop: 8 }}>
+                        Dette er generell informasjon om norske byggesaksregler, ikke juridisk
+                        rådgivning. Be megler om godkjente tegninger, og kontakt kommunen hvis noe
+                        er uklart før du legger inn bud.
+                    </div>
+                </details>
+            </div>
+        </>
+    );
+}
+
 export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokumenter: DokRef[] }) {
     const teller = (niva: string) => rapport.risikoer.filter((x) => x.alvorlighet === niva).length;
     const hoy = teller("høy");
@@ -251,6 +328,12 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                           </details>
                       );
                   })}
+
+            <PlanlosningSeksjon
+                status={rapport.planlosning_status}
+                avvik={rapport.planlosning_avvik}
+                dokumenter={dokumenter}
+            />
 
             {rapport.sporsmal_til_visning.length > 0 && (
                 <>

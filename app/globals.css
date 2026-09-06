@@ -714,6 +714,55 @@ a {
     padding: 16px;
 }
 
+/* Planløsning og godkjenning. Nøytral som standard – "ikke vurdert" er
+   informasjon, ikke en advarsel. Rød kant først når et avvik faktisk står
+   beskrevet i dokumentet. */
+.planlosning {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--muted);
+    border-radius: 0 8px 8px 0;
+    background: var(--surface);
+    padding: 14px 16px;
+}
+
+.planlosning.har-avvik {
+    border-left-color: var(--tg3);
+}
+
+.planlosning-topp {
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.planlosning.har-avvik .planlosning-topp {
+    font-weight: 600;
+}
+
+.planlosning-punkt {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.planlosning-mer {
+    margin-top: 12px;
+}
+
+.planlosning-mer summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.planlosning-mer ul {
+    margin: 10px 0 0;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
 /* Overskrift med grupperingsbryter ved siden av. */
 .section-head {
     display: flex;

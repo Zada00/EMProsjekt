@@ -98,6 +98,21 @@ export const kostnadSchema = z.object({
     kilde: z.string().nullable(),
 });
 
+/**
+ * Avvik mellom godkjente byggetegninger og faktisk planløsning.
+ *
+ * Juridisk sensitivt: å fortelle en kjøper at noe kan være ulovlig er en sterk
+ * påstand. Derfor gjengir modellen KUN hva dokumentet sier – konsekvensene er
+ * generiske for norsk byggesak og ligger som fast tekst i UI-et, ikke som noe
+ * modellen formulerer. Da kan ordlyden kvalitetssikres én gang, og den kan
+ * ikke hallusineres.
+ */
+export const planlosningAvvikSchema = z.object({
+    hva: z.string(), // hva rapporten faktisk sier, på vanlig norsk
+    rom: z.string().nullable().catch(null), // hvilket rom eller areal det gjelder
+    kilde: z.string(),
+});
+
 export const rapportSchema = z.object({
     dokumenttype: z.preprocess(smaaBokstaver,
         z.enum(["tilstandsrapport", "salgsoppgave", "kombinasjon", "annet"])
@@ -108,6 +123,16 @@ export const rapportSchema = z.object({
     sammendrag: z.string(), // 3-6 setninger prosa på vanlig norsk, til en kjøper
     dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
+    /**
+     * Tre utfall, ikke to. Skillet mellom "ingen avvik" og "ikke vurdert" er
+     * avgjørende: at ingen avvik er funnet fordi tegningene aldri ble fremlagt,
+     * er noe HELT annet enn at tegningene stemmer. Sandvika-rapporten er
+     * nettopp det første. Faller tilbake til "ikke vurdert" – det forsiktige.
+     */
+    planlosning_status: z
+        .preprocess(smaaBokstaver, z.enum(["avvik", "ingen avvik", "ikke vurdert"]))
+        .catch("ikke vurdert"),
+    planlosning_avvik: z.array(planlosningAvvikSchema).catch([]),
     sporsmal_til_visning: z.array(z.string()),
     mulige_kostnader: z.array(kostnadSchema),
     ikke_funnet: z.array(z.string()),
@@ -231,6 +256,32 @@ export const rapportJsonSchema = {
                 required: ["tittel", "forklaring", "alvorlighet", "kategori", "tg", "kostnadsanslag", "kilde"],
             },
         },
+        planlosning_status: {
+            type: "string",
+            enum: ["avvik", "ingen avvik", "ikke vurdert"],
+            description:
+                "Sier dokumentet noe om forholdet mellom godkjente byggetegninger og faktisk planløsning? 'avvik' = dokumentet beskriver et konkret avvik (f.eks. rom brukt til varig opphold uten godkjenning, innredet kjeller eller loft som ikke er byggemeldt). 'ingen avvik' = tegninger er fremlagt og samsvarer. 'ikke vurdert' = tegninger er ikke fremlagt, eller forholdet er ikke omtalt. VIKTIG: bruk 'ikke vurdert' – ikke 'ingen avvik' – når grunnlaget mangler. At ingenting er funnet fordi ingen har sett etter, er noe annet enn at alt er i orden.",
+        },
+        planlosning_avvik: {
+            type: "array",
+            description:
+                "Konkrete avvik dokumentet beskriver. Tom liste hvis status ikke er 'avvik'. Gjengi KUN det dokumentet sier – du skal aldri vurdere selv om noe er ulovlig, og aldri beskrive konsekvenser her (de håndteres utenfor analysen).",
+            items: {
+                type: "object",
+                properties: {
+                    hva: {
+                        type: "string",
+                        description: "Hva dokumentet sier om avviket, på vanlig norsk. F.eks. 'Kjellerstua er innredet som soverom, men er ikke godkjent for varig opphold'.",
+                    },
+                    rom: {
+                        type: ["string", "null"],
+                        description: "Hvilket rom eller areal det gjelder, hvis oppgitt.",
+                    },
+                    kilde: { type: "string", description: "Sidetall eller punkt." },
+                },
+                required: ["hva", "rom", "kilde"],
+            },
+        },
         sporsmal_til_visning: {
             type: "array",
             description:
@@ -284,6 +335,8 @@ export const rapportJsonSchema = {
         "bruksareal_bra_m2",
         "sammendrag",
         "risikoer",
+        "planlosning_status",
+        "planlosning_avvik",
         "sporsmal_til_visning",
         "mulige_kostnader",
         "ikke_funnet",
