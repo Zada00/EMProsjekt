@@ -597,15 +597,40 @@ a {
             display: none;
         }
 
+        /* Utvid-indikatoren. Megleren fant den vanskelig å oppdage – den var
+           14 px og grå. Nå en tydelig sirkel med kontrast, så det leses som en
+           kontroll man kan trykke på, ikke som dekor. */
         .acc summary::after {
             content: "▾";
             margin-left: auto;
-            color: var(--muted);
-            transition: transform 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            flex: 0 0 26px;
+            border: 1px solid var(--line);
+            border-radius: 50%;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 15px;
+            line-height: 1;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
         }
 
     .acc:not([open]) summary::after {
         transform: rotate(-90deg);
+    }
+
+    .acc summary:hover::after {
+        border-color: var(--muted);
+        background: var(--line);
+    }
+
+    /* Hele raden reagerer på hover, ikke bare ikonet – da er det tydelig at
+       overskriften i seg selv er klikkbar. */
+    .acc summary:hover {
+        color: var(--text);
     }
 
 .acc-antall {
@@ -712,6 +737,330 @@ a {
     border-radius: 8px;
     background: var(--surface);
     padding: 16px;
+}
+
+/* Visningsspørsmål gruppert etter tema – en sjekkliste, ikke en tekstvegg. */
+.qintro {
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+.qgruppe + .qgruppe {
+    margin-top: 18px;
+}
+
+.qtema {
+    margin-bottom: 8px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* Parkeringsvilkår – lett å overse, dyrt å oppdage etter budet. */
+.parkering-vilkar {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--tg2);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+/* Egenerklæringen: viktig, men selgers egne ord. Introen sier begge deler. */
+.egenerklaering-intro {
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+.egen-type {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--line);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* Areal og romfordeling – utvidbart, så nøkkelinfoen holder seg kort. */
+.arealboks {
+    margin-top: 10px;
+}
+
+.arealboks summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.areal-liste,
+.etasje-liste {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.areal-rad {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+}
+
+.areal-rad:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.areal-navn {
+    color: var(--muted);
+}
+
+.areal-tall {
+    font-family: var(--mono);
+    font-size: 15px;
+}
+
+.etasje-rad {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+/* Overskrift over donut-en – megleren savnet at grafikken sa hva den viser. */
+.donut-tittel {
+    width: 100%;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+
+/* TG-koden ved siden av alvorlighetsordet, dempet så den ikke stjeler fokus. */
+.donutlegende em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.8;
+    margin-left: 2px;
+}
+
+/* TG3 skal skille seg ut. Kjøperen skal se på ett blikk at dette er
+   en annen kategori enn resten – ikke bare en litt mørkere farge. */
+.donutlegende .legende-hoy {
+    font-weight: 650;
+    color: var(--tg3);
+}
+
+.donutlegende .legende-hoy em {
+    color: var(--tg3);
+    opacity: 1;
+}
+
+.tg-forklaring {
+    margin-top: 12px;
+}
+
+.tg-forklaring summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.tg-liste {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tg-rad {
+    display: grid;
+    grid-template-columns: 12px 46px 1fr;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.tg-rad-alvorlig {
+    padding: 6px 8px;
+    margin-left: -8px;
+    border-radius: 6px;
+    background: var(--surface);
+    font-weight: 500;
+}
+
+.tg-prikk {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    align-self: center;
+}
+
+/* Planløsning og godkjenning. Nøytral som standard – "ikke vurdert" er
+   informasjon, ikke en advarsel. Rød kant først når et avvik faktisk står
+   beskrevet i dokumentet. */
+.planlosning {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--muted);
+    border-radius: 0 8px 8px 0;
+    background: var(--surface);
+    padding: 14px 16px;
+}
+
+.planlosning.har-avvik {
+    border-left-color: var(--tg3);
+}
+
+.planlosning-topp {
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.planlosning.har-avvik .planlosning-topp {
+    font-weight: 600;
+}
+
+.planlosning-punkt {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.planlosning-mer {
+    margin-top: 12px;
+}
+
+.planlosning-mer summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.planlosning-mer ul {
+    margin: 10px 0 0;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Overskrift med grupperingsbryter ved siden av. */
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.grupperingsvalg {
+    display: flex;
+    gap: 4px;
+}
+
+.grupperingsvalg button {
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.grupperingsvalg button.aktiv {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--muted);
+}
+
+/* Hvilket område et funn gjelder – rolig, det skal ikke konkurrere
+   med alvorlighetsmerket om oppmerksomheten. */
+.omrade-chip {
+    margin-left: auto;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* Bad og kjøkken: ofte de dyreste postene, derfor synlig markert. */
+.acc.fremhevet > summary {
+    border-left: 3px solid var(--tg2);
+    padding-left: 9px;
+}
+
+.fremhev-merke {
+    margin-left: 8px;
+    font-style: normal;
+    font-size: 12px;
+    color: var(--muted);
+    opacity: 0.85;
+}
+
+/* Rapportens eget prisanslag på et funn – nøytralt, ikke alarmerende.
+   Merket gjør det tydelig at tallet kommer fra takstmannen, ikke fra oss. */
+.anslag {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.anslag-merke,
+.konsekvens-merke {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--line);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* Hva som skjer hvis kjøperen ikke gjør noe. Gul strek: dette er en
+   konsekvens å ta stilling til, ikke en advarsel om noe akutt. */
+.konsekvens {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--tg2);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.kostnad-sporsmal {
+    margin-top: 10px;
+}
+
+.kostnad-sporsmal summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.kostnad-sporsmal ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.6;
 }
 
 /* Vises når en analyse er hentet fra øktlageret etter sidelasting.
