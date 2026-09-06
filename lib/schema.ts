@@ -125,6 +125,35 @@ export const etasjeSchema = z.object({
 });
 
 /**
+ * Energi og oppvarming – det som avgjør hva boligen koster å bo i, måned for
+ * måned. Kjøpere ser gjerne på kjøpesummen og glemmer denne.
+ *
+ * "stromavtale" holdes som fritekst med vilje: ordningene på det norske
+ * strømmarkedet endrer seg raskere enn vi rekker å oppdatere en enum, og en
+ * utdatert liste ville tvunget modellen til å presse nye ordninger inn i feil
+ * kategori. Vi gjengir det dokumentet sier.
+ */
+export const OPPVARMING = [
+    "elektrisk",
+    "varmepumpe",
+    "vedovn eller peis",
+    "fjernvarme",
+    "vannbåren varme",
+    "gulvvarme",
+    "solenergi",
+    "annet",
+] as const;
+
+export const energiSchema = z.object({
+    energimerke: z.string().nullable().catch(null), // f.eks. "C – gul"
+    oppvarming: z.array(z.preprocess(smaaBokstaver, z.enum(OPPVARMING))).catch([]),
+    aarlig_stromforbruk_kwh: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    stromavtale: z.string().nullable().catch(null),
+    betydning: z.string().nullable().catch(null), // hva dette betyr for løpende kostnader
+    kilde: z.string().nullable().catch(null),
+});
+
+/**
  * Parkering. Alltid til stede med "ikke opplyst" som standard, slik at UI-et
  * slipper null-sjekker – og slik at fraværet av opplysning blir synlig i stedet
  * for at feltet bare forsvinner.
@@ -189,6 +218,10 @@ export const rapportSchema = z.object({
     antall_soverom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
     etasjer: z.array(etasjeSchema).catch([]),
     parkering: parkeringSchema.catch({ type: "ikke opplyst", beskrivelse: null, vilkar: null, kilde: null }),
+    energi: energiSchema.catch({
+        energimerke: null, oppvarming: [], aarlig_stromforbruk_kwh: null,
+        stromavtale: null, betydning: null, kilde: null,
+    }),
     sammendrag: z.string(), // 3-6 setninger prosa på vanlig norsk, til en kjøper
     dokument_advarsel: z.string().nullable().catch(null), // f.eks. "dokumentene ser ut til å gjelde ulike boliger"
     risikoer: z.array(risikoSchema),
@@ -302,6 +335,35 @@ export const rapportJsonSchema = {
         },
         antall_rom: { type: ["integer", "null"], description: "Antall rom totalt, hvis oppgitt." },
         antall_soverom: { type: ["integer", "null"], description: "Antall soverom, hvis oppgitt." },
+        energi: {
+            type: "object",
+            description:
+                "Energi og oppvarming – det som avgjør hva boligen koster å bo i hver måned. Fyll ut det dokumentet faktisk oppgir; la resten være null.",
+            properties: {
+                energimerke: { type: ["string", "null"], description: "F.eks. 'C – gul', hvis energiattest er oppgitt." },
+                oppvarming: {
+                    type: "array",
+                    items: { type: "string", enum: [...OPPVARMING] },
+                    description: "Alle oppvarmingsformene boligen har. Tom liste hvis ikke oppgitt.",
+                },
+                aarlig_stromforbruk_kwh: {
+                    type: ["integer", "null"],
+                    description: "Årlig strømforbruk i kWh, hvis oppgitt. Gjengi tallet som det står – ikke regn om.",
+                },
+                stromavtale: {
+                    type: ["string", "null"],
+                    description:
+                        "Hva dokumentet sier om strømavtale, gjengitt ordrett nok til å være etterprøvbart – f.eks. 'Selger har ikke inngått avtale om Norgespris'. Null hvis ikke omtalt.",
+                },
+                betydning: {
+                    type: ["string", "null"],
+                    description:
+                        "Én til to setninger om hva dette betyr for kjøperens løpende kostnader, basert KUN på det dokumentet oppgir. Ingen egne kroneanslag og ingen antakelser om strømpriser. Kan du ikke si noe konkret: null.",
+                },
+                kilde: { type: ["string", "null"] },
+            },
+            required: ["energimerke", "oppvarming", "aarlig_stromforbruk_kwh", "stromavtale", "betydning", "kilde"],
+        },
         parkering: {
             type: "object",
             description: "Parkering hører til det kjøperen sjekker først. Sett type til 'ikke opplyst' hvis dokumentet ikke sier noe.",
@@ -502,6 +564,7 @@ export const rapportJsonSchema = {
         "antall_soverom",
         "etasjer",
         "parkering",
+        "energi",
         "sammendrag",
         "risikoer",
         "egenerklaering_status",

@@ -303,6 +303,60 @@ function EgenerklaeringSeksjon({
     );
 }
 
+const OPPVARMING_NAVN: Record<string, string> = {
+    "elektrisk": "Elektrisk",
+    "varmepumpe": "Varmepumpe",
+    "vedovn eller peis": "Vedovn eller peis",
+    "fjernvarme": "Fjernvarme",
+    "vannbåren varme": "Vannbåren varme",
+    "gulvvarme": "Gulvvarme",
+    "solenergi": "Solenergi",
+    "annet": "Annet",
+};
+
+/** Energi og oppvarming. Vises kun når dokumentet faktisk sier noe. */
+function EnergiSeksjon({ energi, dokumenter }: { energi: Rapport["energi"]; dokumenter: DokRef[] }) {
+    const harNoe =
+        energi.energimerke || energi.oppvarming.length > 0 || energi.aarlig_stromforbruk_kwh || energi.stromavtale;
+    if (!harNoe) return null;
+
+    return (
+        <>
+            <div className="section-title">Energi og oppvarming</div>
+            <div className="facts">
+                <Fact label="Energimerke" value={energi.energimerke} />
+                <Fact
+                    label="Oppvarming"
+                    value={
+                        energi.oppvarming.length > 0
+                            ? energi.oppvarming.map((o) => OPPVARMING_NAVN[o] ?? o).join(", ")
+                            : null
+                    }
+                />
+                <Fact
+                    label="Strømforbruk"
+                    value={energi.aarlig_stromforbruk_kwh ? `${energi.aarlig_stromforbruk_kwh} kWh/år` : null}
+                />
+            </div>
+
+            {energi.stromavtale && (
+                <div className="parkering-vilkar">
+                    <span className="anslag-merke">Strømavtale</span>
+                    {energi.stromavtale}
+                </div>
+            )}
+            {energi.betydning && <div className="konsekvens">{energi.betydning}</div>}
+            {energi.kilde && (
+                <div className="kildelinje">
+                    <button className="kilde kildeknapp" onClick={() => aapneKilde(energi.kilde!, dokumenter)}>
+                        {energi.kilde} ↗
+                    </button>
+                </div>
+            )}
+        </>
+    );
+}
+
 function PlanlosningSeksjon({
     status,
     avvik,
@@ -546,6 +600,8 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                           </details>
                       );
                   })}
+
+            <EnergiSeksjon energi={rapport.energi} dokumenter={dokumenter} />
 
             <EgenerklaeringSeksjon
                 status={rapport.egenerklaering_status}
