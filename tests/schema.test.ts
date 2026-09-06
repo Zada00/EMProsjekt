@@ -71,6 +71,37 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("økonomi etter boligtype", () => {
+  const med = (felt: object) =>
+    rapportSchema.parse({
+      dokumenttype: "salgsoppgave", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+      ...felt,
+    });
+
+  it("holder enebolig fri for felleskostnader", () => {
+    const r = med({
+      okonomi: {
+        eierform: "selveier", felleskostnader_mnd: null, fellesgjeld: null,
+        kommunale_avgifter_aar: 14500, eiendomsskatt_aar: 3200,
+        planlagte_fellesprosjekter: null, kilde: "s. 2",
+      },
+    });
+    expect(r.okonomi.felleskostnader_mnd).toBeNull();
+    expect(r.okonomi.kommunale_avgifter_aar).toBe(14500);
+  });
+
+  it("skiller sameie fra borettslag", () => {
+    expect(med({ okonomi: { eierform: "Sameie", felleskostnader_mnd: 3500, fellesgjeld: null, kommunale_avgifter_aar: null, eiendomsskatt_aar: null, planlagte_fellesprosjekter: null, kilde: null } }).okonomi.eierform).toBe("sameie");
+    expect(med({ okonomi: { eierform: "borettslag", felleskostnader_mnd: 4200, fellesgjeld: 850000, kommunale_avgifter_aar: null, eiendomsskatt_aar: null, planlagte_fellesprosjekter: null, kilde: null } }).okonomi.eierform).toBe("borettslag");
+  });
+
+  it("faller tilbake til 'ikke opplyst' for eldre svar", () => {
+    expect(med({}).okonomi.eierform).toBe("ikke opplyst");
+  });
+});
+
 describe("parkering", () => {
   const med = (felt: object) =>
     rapportSchema.parse({

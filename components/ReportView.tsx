@@ -303,6 +303,70 @@ function EgenerklaeringSeksjon({
     );
 }
 
+const EIERFORM_NAVN: Record<string, string> = {
+    "selveier": "Selveier",
+    "sameie": "Eierseksjon i sameie",
+    "borettslag": "Andel i borettslag",
+    "aksjeleilighet": "Aksjeleilighet",
+};
+
+/** Kroner med mellomrom som tusenskille – 3500 → "3 500 kr". */
+const kr = (n: number) => `${n.toLocaleString("nb-NO")} kr`;
+
+/**
+ * Økonomi. Vi viser kun feltene som faktisk har verdi, i stedet for å styre
+ * visningen på boligtype: modellen setter null på det som ikke gjelder, og da
+ * slipper vi å vedlikeholde de samme reglene både i prompten og i UI-et.
+ */
+function OkonomiSeksjon({ okonomi, dokumenter }: { okonomi: Rapport["okonomi"]; dokumenter: DokRef[] }) {
+    const harNoe =
+        okonomi.felleskostnader_mnd !== null ||
+        okonomi.fellesgjeld !== null ||
+        okonomi.kommunale_avgifter_aar !== null ||
+        okonomi.eiendomsskatt_aar !== null ||
+        okonomi.planlagte_fellesprosjekter !== null ||
+        okonomi.eierform !== "ikke opplyst";
+    if (!harNoe) return null;
+
+    return (
+        <>
+            <div className="section-title">Økonomi</div>
+            <div className="facts">
+                <Fact label="Eierform" value={EIERFORM_NAVN[okonomi.eierform] ?? null} />
+                <Fact
+                    label="Felleskostnader"
+                    value={okonomi.felleskostnader_mnd !== null ? `${kr(okonomi.felleskostnader_mnd)}/mnd` : null}
+                />
+                <Fact label="Fellesgjeld" value={okonomi.fellesgjeld !== null ? kr(okonomi.fellesgjeld) : null} />
+                <Fact
+                    label="Kommunale avgifter"
+                    value={okonomi.kommunale_avgifter_aar !== null ? `${kr(okonomi.kommunale_avgifter_aar)}/år` : null}
+                />
+                <Fact
+                    label="Eiendomsskatt"
+                    value={okonomi.eiendomsskatt_aar !== null ? `${kr(okonomi.eiendomsskatt_aar)}/år` : null}
+                />
+            </div>
+
+            {/* Vedtatte prosjekter er fremtidige felleskostnader som ikke synes
+                i månedsbeløpet i dag – derfor markert, ikke bare listet. */}
+            {okonomi.planlagte_fellesprosjekter && (
+                <div className="parkering-vilkar">
+                    <span className="anslag-merke">Planlagt i sameiet</span>
+                    {okonomi.planlagte_fellesprosjekter}
+                </div>
+            )}
+            {okonomi.kilde && (
+                <div className="kildelinje">
+                    <button className="kilde kildeknapp" onClick={() => aapneKilde(okonomi.kilde!, dokumenter)}>
+                        {okonomi.kilde} ↗
+                    </button>
+                </div>
+            )}
+        </>
+    );
+}
+
 const OPPVARMING_NAVN: Record<string, string> = {
     "elektrisk": "Elektrisk",
     "varmepumpe": "Varmepumpe",
@@ -600,6 +664,8 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                           </details>
                       );
                   })}
+
+            <OkonomiSeksjon okonomi={rapport.okonomi} dokumenter={dokumenter} />
 
             <EnergiSeksjon energi={rapport.energi} dokumenter={dokumenter} />
 

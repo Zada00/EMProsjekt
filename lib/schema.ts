@@ -125,6 +125,29 @@ export const etasjeSchema = z.object({
 });
 
 /**
+ * Økonomi. Hvilke felter som er relevante avhenger av eierformen: en enebolig
+ * har kommunale avgifter og ingen felleskostnader, en leilighet i sameie har
+ * begge deler. Vi lar modellen sette null på det som ikke gjelder, og UI-et
+ * skjuler tomme felter – da slipper vi å vedlikeholde regler to steder.
+ *
+ * Beløpene her er FAKTA fra dokumentet, ikke anslag, og er derfor tillatt i
+ * motsetning til utbedringskostnader. De krever likevel kilde.
+ */
+export const okonomiSchema = z.object({
+    eierform: z
+        .preprocess(smaaBokstaver, z.enum(["selveier", "sameie", "borettslag", "aksjeleilighet", "ikke opplyst"]))
+        .catch("ikke opplyst"),
+    felleskostnader_mnd: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    fellesgjeld: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    kommunale_avgifter_aar: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    eiendomsskatt_aar: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
+    // Kommende rørfornying, fasaderehabilitering osv. – fremtidige felleskostnader
+    // som ikke synes i månedsbeløpet i dag.
+    planlagte_fellesprosjekter: z.string().nullable().catch(null),
+    kilde: z.string().nullable().catch(null),
+});
+
+/**
  * Energi og oppvarming – det som avgjør hva boligen koster å bo i, måned for
  * måned. Kjøpere ser gjerne på kjøpesummen og glemmer denne.
  *
@@ -218,6 +241,11 @@ export const rapportSchema = z.object({
     antall_soverom: z.preprocess(heltallFraTekst, z.number().int().nullable()).catch(null),
     etasjer: z.array(etasjeSchema).catch([]),
     parkering: parkeringSchema.catch({ type: "ikke opplyst", beskrivelse: null, vilkar: null, kilde: null }),
+    okonomi: okonomiSchema.catch({
+        eierform: "ikke opplyst", felleskostnader_mnd: null, fellesgjeld: null,
+        kommunale_avgifter_aar: null, eiendomsskatt_aar: null,
+        planlagte_fellesprosjekter: null, kilde: null,
+    }),
     energi: energiSchema.catch({
         energimerke: null, oppvarming: [], aarlig_stromforbruk_kwh: null,
         stromavtale: null, betydning: null, kilde: null,
@@ -335,6 +363,32 @@ export const rapportJsonSchema = {
         },
         antall_rom: { type: ["integer", "null"], description: "Antall rom totalt, hvis oppgitt." },
         antall_soverom: { type: ["integer", "null"], description: "Antall soverom, hvis oppgitt." },
+        okonomi: {
+            type: "object",
+            description:
+                "Løpende og faste kostnader. Sett null på det som ikke gjelder boligtypen – en enebolig har normalt ikke felleskostnader, en borettslagsleilighet har normalt ikke egen eiendomsskatt. Ikke fyll inn et felt bare fordi det finnes. Beløpene her er FAKTA fra dokumentet, ikke anslag, og skal gjengis som de står.",
+            properties: {
+                eierform: {
+                    type: "string",
+                    enum: ["selveier", "sameie", "borettslag", "aksjeleilighet", "ikke opplyst"],
+                    description: "Eierformen avgjør hvilke kostnader som er relevante. Sameie og borettslag er IKKE det samme – bland dem aldri.",
+                },
+                felleskostnader_mnd: { type: ["integer", "null"], description: "Felleskostnader per måned i kroner. Null for enebolig uten fellesskap." },
+                fellesgjeld: { type: ["integer", "null"], description: "Andel fellesgjeld i kroner, hvis oppgitt." },
+                kommunale_avgifter_aar: { type: ["integer", "null"], description: "Kommunale avgifter per år i kroner. Særlig relevant for enebolig." },
+                eiendomsskatt_aar: { type: ["integer", "null"], description: "Eiendomsskatt per år i kroner, hvis oppgitt." },
+                planlagte_fellesprosjekter: {
+                    type: ["string", "null"],
+                    description:
+                        "Vedtatte eller planlagte prosjekter i sameiet/borettslaget som kan gi økte felleskostnader senere – f.eks. rørfornying, fasaderehabilitering eller nytt tak. Dette er fremtidige kostnader som ikke synes i månedsbeløpet i dag. Null hvis ikke omtalt.",
+                },
+                kilde: { type: ["string", "null"] },
+            },
+            required: [
+                "eierform", "felleskostnader_mnd", "fellesgjeld", "kommunale_avgifter_aar",
+                "eiendomsskatt_aar", "planlagte_fellesprosjekter", "kilde",
+            ],
+        },
         energi: {
             type: "object",
             description:
@@ -564,6 +618,7 @@ export const rapportJsonSchema = {
         "antall_soverom",
         "etasjer",
         "parkering",
+        "okonomi",
         "energi",
         "sammendrag",
         "risikoer",
