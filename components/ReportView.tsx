@@ -95,6 +95,14 @@ function RisikoKort({ r, badge, border, dokumenter }: { r: Risiko; badge: string
                 <span className="del">{r.tittel}</span>
             </div>
             <div className="desc">{r.forklaring}</div>
+            {/* Rapportens eget prisanslag, der det finnes. Megler-tilbakemelding:
+                kjøperen skal se alvorlighet og prislapp i samme blikk. */}
+            {r.kostnadsanslag && (
+                <div className="anslag">
+                    <span className="anslag-merke">Rapportens anslag</span>
+                    {r.kostnadsanslag}
+                </div>
+            )}
             <div className="kildelinje">
                 {/* Uten dokumenter (gjenopprettet analyse etter refresh) er blob-URL-ene
                     borte. Da viser vi kilden som tekst i stedet for en knapp som
@@ -200,6 +208,24 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                                     <span className="del">{k.hva}</span>
                                 </div>
                                 <div className="desc">{k.vurdering}</div>
+                                {k.konsekvens && (
+                                    <div className="konsekvens">
+                                        <span className="konsekvens-merke">Hvis du ikke gjør noe</span>
+                                        {k.konsekvens}
+                                    </div>
+                                )}
+                                {k.sporsmal.length > 0 && (
+                                    <details className="acc kostnad-sporsmal">
+                                        <summary>
+                                            Spør megler om dette ({k.sporsmal.length})
+                                        </summary>
+                                        <ul>
+                                            {k.sporsmal.map((s, j) => (
+                                                <li key={j}>{s}</li>
+                                            ))}
+                                        </ul>
+                                    </details>
+                                )}
                                 {k.kilde && (
                                     <div className="kildelinje">
                                         <button className="kilde kildeknapp" onClick={() => aapneKilde(k.kilde!, dokumenter)}>

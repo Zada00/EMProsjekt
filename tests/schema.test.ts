@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { vurderDekning } from "../lib/dekningsvakt";
 import { erEnige, velgBeste } from "../lib/konsensus";
-import { normaliserAlvorlighet, rapportSchema } from "../lib/schema";
+import { normaliserAlvorlighet, rapportSchema, sorterKostnader } from "../lib/schema";
 
 /**
  * Regresjonsvern for datakontrakten: normaliseringen som reddet oss i første
@@ -68,6 +68,53 @@ describe("skjema-normalisering", () => {
     expect(korrigert).toBe(3);
     // Originalen skal ikke muteres:
     expect(r.risikoer[0].alvorlighet).toBe("middels");
+  });
+});
+
+describe("sortering av kostnader", () => {
+  const kost = (hva: string, grovt_niva: string) => ({
+    hva, grovt_niva, vurdering: hva, konsekvens: null, sporsmal: [], kilde: null,
+  });
+  const medKostnader = (k: object[]) =>
+    rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [], sporsmal_til_visning: [], mulige_kostnader: k, ikke_funnet: [],
+    });
+
+  it("sorterer stor → ukjent → middels → liten", () => {
+    const r = medKostnader([
+      kost("komfyrvakt", "liten"), kost("rør", "stor"),
+      kost("rekkverk", "middels"), kost("fukt i bod", "ukjent"),
+    ]);
+    expect(sorterKostnader(r).mulige_kostnader.map((k) => k.hva)).toEqual([
+      "rør", "fukt i bod", "rekkverk", "komfyrvakt",
+    ]);
+  });
+
+  it("beholder modellens rekkefølge innenfor samme nivå", () => {
+    const r = medKostnader([kost("bad", "stor"), kost("vinduer", "stor"), kost("tak", "stor")]);
+    expect(sorterKostnader(r).mulige_kostnader.map((k) => k.hva)).toEqual(["bad", "vinduer", "tak"]);
+  });
+
+  it("muterer ikke originalen", () => {
+    const r = medKostnader([kost("liten sak", "liten"), kost("stor sak", "stor")]);
+    sorterKostnader(r);
+    expect(r.mulige_kostnader[0].hva).toBe("liten sak");
+  });
+
+  it("tåler at eldre svar mangler konsekvens og spørsmål", () => {
+    const r = rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [{ tittel: "x", forklaring: "y", alvorlighet: "høy", tg: 3, kilde: "s. 1" }],
+      sporsmal_til_visning: [],
+      mulige_kostnader: [{ hva: "rør", grovt_niva: "stor", vurdering: "z", kilde: null }],
+      ikke_funnet: [],
+    });
+    expect(r.risikoer[0].kostnadsanslag).toBeNull();
+    expect(r.mulige_kostnader[0].konsekvens).toBeNull();
+    expect(r.mulige_kostnader[0].sporsmal).toEqual([]);
   });
 });
 

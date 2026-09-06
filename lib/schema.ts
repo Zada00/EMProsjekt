@@ -41,6 +41,10 @@ export const risikoSchema = z.object({
     forklaring: z.string(), // hva det betyr for kjøper, uten fagsjargong
     alvorlighet: z.preprocess(smaaBokstaver, z.enum(["høy", "middels", "lav"])),
     tg: z.preprocess(heltallFraTekst, z.number().int().min(0).max(3).nullable()).catch(null), // original tilstandsgrad hvis oppgitt
+    // Rapportens EGET sjablonganslag for akkurat dette forholdet, ordrett.
+    // Megler-tilbakemelding: TG3-funn skal vise kostnad der den finnes, slik at
+    // kjøperen ser alvorlighet og prislapp samtidig. Aldri vårt eget anslag.
+    kostnadsanslag: z.string().nullable().catch(null),
     kilde: z.string(), // f.eks. "s. 24" eller "Pkt 5.3 Bad"
 });
 
@@ -48,6 +52,12 @@ export const kostnadSchema = z.object({
     hva: z.string(), // f.eks. "Nytt bad", "Drenering"
     grovt_niva: z.preprocess(smaaBokstaver, z.enum(["liten", "middels", "stor", "ukjent"])), // grov skala, IKKE presise tall
     vurdering: z.string(), // kort forklaring med forbehold
+    // Hva skjer hvis kjøperen IKKE gjør noe med dette? Megler-tilbakemelding:
+    // en kostnad uten konsekvens er bare et tall – kjøperen trenger å vite hva
+    // som står på spill for å prioritere mellom postene.
+    konsekvens: z.string().nullable().catch(null),
+    // Konkrete spørsmål knyttet til nettopp denne kostnaden.
+    sporsmal: z.array(z.string()).catch([]),
     kilde: z.string().nullable(),
 });
 
@@ -68,6 +78,30 @@ export const rapportSchema = z.object({
 
 export type Rapport = z.infer<typeof rapportSchema>;
 export type Risiko = z.infer<typeof risikoSchema>;
+
+/**
+ * Sorterer mulige kostnader størst → minst. Rekkefølgen er en produktbeslutning,
+ * ikke noe modellen skal avgjøre – derfor i kode (samme prinsipp som
+ * normaliserAlvorlighet under).
+ *
+ * Hvorfor "ukjent" ligger nest øverst og ikke nederst: et forhold med ukjent
+ * omfang er ofte det farligste kjøperen står overfor – fukt i bod der omfanget
+ * ikke er avklart kan vise seg å bli den største posten av alle. Å sortere den
+ * nederst fordi vi ikke vet, ville begravd nettopp det kjøperen bør undersøke.
+ *
+ * Array.prototype.sort er stabil i moderne JS, så poster på samme nivå beholder
+ * rekkefølgen modellen ga dem.
+ */
+const KOSTNAD_VEKT: Record<string, number> = { stor: 0, ukjent: 1, middels: 2, liten: 3 };
+
+export function sorterKostnader(rapport: Rapport): Rapport {
+    return {
+        ...rapport,
+        mulige_kostnader: [...rapport.mulige_kostnader].sort(
+            (a, b) => (KOSTNAD_VEKT[a.grovt_niva] ?? 9) - (KOSTNAD_VEKT[b.grovt_niva] ?? 9)
+        ),
+    };
+}
 
 /**
  * Deterministisk kobling TG → alvorlighet: TG3=høy, TG2=middels, TG0/1=lav.
@@ -141,12 +175,17 @@ export const rapportJsonSchema = {
                         maximum: 3,
                         description: "Original tilstandsgrad fra rapporten hvis oppgitt, ellers null.",
                     },
+                    kostnadsanslag: {
+                        type: ["string", "null"],
+                        description:
+                            "Rapportens EGET sjablongmessige prisanslag for akkurat dette forholdet, gjengitt ordrett (f.eks. 'kr 10 000 - 50 000'). Særlig viktig på TG3-funn. Står det ikke noe anslag ved forholdet: null. Aldri ditt eget anslag.",
+                    },
                     kilde: {
                         type: "string",
                         description: "Sidetall eller punkt, f.eks. 's. 24' eller 'Pkt 5.3'.",
                     },
                 },
-                required: ["tittel", "forklaring", "alvorlighet", "tg", "kilde"],
+                required: ["tittel", "forklaring", "alvorlighet", "tg", "kostnadsanslag", "kilde"],
             },
         },
         sporsmal_til_visning: {
@@ -172,9 +211,20 @@ export const rapportJsonSchema = {
                         type: "string",
                         description: "Kort forklaring med tydelig forbehold. Ingen egne tall – kun beløp som står ordrett i dokumentet, merket som rapportens anslag.",
                     },
+                    konsekvens: {
+                        type: ["string", "null"],
+                        description:
+                            "Hva skjer hvis kjøperen IKKE gjør noe med dette? Én til to setninger på vanlig norsk, forankret i rapporten (f.eks. 'En lekkasje fra badet kan gi fuktskader i etasjeskilleren under, som blir vesentlig dyrere å utbedre'). Kan du ikke utlede konsekvensen av dokumentet: null.",
+                    },
+                    sporsmal: {
+                        type: "array",
+                        items: { type: "string" },
+                        description:
+                            "Konkrete spørsmål kjøperen bør stille megler eller selger om nettopp denne kostnaden – f.eks. om det finnes tilbud, om sameiet har planer, eller om arbeidet allerede er bestilt. Tom liste hvis ingen er relevante.",
+                    },
                     kilde: { type: ["string", "null"] },
                 },
-                required: ["hva", "grovt_niva", "vurdering", "kilde"],
+                required: ["hva", "grovt_niva", "vurdering", "konsekvens", "sporsmal", "kilde"],
             },
         },
         ikke_funnet: {
