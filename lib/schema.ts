@@ -36,10 +36,47 @@ const smaaBokstaver = (v: unknown) =>
  * og vi finner ALDRI på presise kronebeløp (se prompt.ts).
  */
 
+/**
+ * Områdene et avvik kan tilhøre. FAST liste, ikke fritekst – ellers ender vi med
+ * "Bad", "Baderom" og "Våtrom" som tre separate grupper i UI-et.
+ *
+ * Listen følger inndelingen i norske tilstandsrapporter (NS 3600), slik at hvert
+ * kontrollpunkt i rapporten har et naturlig hjem. "annet" er sikkerhetsnettet.
+ */
+export const KATEGORIER = [
+    "bad og våtrom",
+    "kjøkken",
+    "vvs og rør",
+    "elektrisk",
+    "brann og sikkerhet",
+    "tak og loft",
+    "grunn og drenering",
+    "yttervegger og fasade",
+    "vinduer og dører",
+    "balkong og terrasse",
+    "konstruksjon",
+    "overflater og innvendig",
+    "ventilasjon",
+    "dokumentasjon",
+    "annet",
+] as const;
+
+export type Kategori = (typeof KATEGORIER)[number];
+
+/**
+ * Bad og kjøkken er erfaringsmessig de dyreste postene ved oppussing, og
+ * megler ba om at de fremheves. Rekkefølgen styrer visningen når brukeren
+ * grupperer funnene etter område.
+ */
+export const FREMHEVEDE_KATEGORIER: readonly Kategori[] = ["bad og våtrom", "kjøkken"];
+
 export const risikoSchema = z.object({
     tittel: z.string(), // kort, på vanlig norsk, f.eks. "Drenering kan svikte"
     forklaring: z.string(), // hva det betyr for kjøper, uten fagsjargong
     alvorlighet: z.preprocess(smaaBokstaver, z.enum(["høy", "middels", "lav"])),
+    // Hvilket område av boligen forholdet gjelder. Faller tilbake til "annet"
+    // hvis modellen finner på en kategori som ikke står i listen.
+    kategori: z.preprocess(smaaBokstaver, z.enum(KATEGORIER)).catch("annet"),
     tg: z.preprocess(heltallFraTekst, z.number().int().min(0).max(3).nullable()).catch(null), // original tilstandsgrad hvis oppgitt
     // Rapportens EGET sjablonganslag for akkurat dette forholdet, ordrett.
     // Megler-tilbakemelding: TG3-funn skal vise kostnad der den finnes, slik at
@@ -169,6 +206,12 @@ export const rapportJsonSchema = {
                         description:
                             "Følger TG direkte: TG3='høy', TG2='middels', TG0/1='lav'. Bruk skjønn kun når rapporten ikke oppgir TG. (Normaliseres uansett i kode etterpå.)",
                     },
+                    kategori: {
+                        type: "string",
+                        enum: [...KATEGORIER],
+                        description:
+                            "Hvilket område av boligen forholdet gjelder, slik at kjøperen raskt ser hva problemet handler om. Velg den mest presise: vannrør hører i 'vvs og rør', membran og sluk i 'bad og våtrom', komfyrvakt i 'kjøkken', manglende byggetegninger i 'dokumentasjon'. Bruk 'annet' kun når ingen av de andre passer.",
+                    },
                     tg: {
                         type: ["integer", "null"],
                         minimum: 0,
@@ -185,7 +228,7 @@ export const rapportJsonSchema = {
                         description: "Sidetall eller punkt, f.eks. 's. 24' eller 'Pkt 5.3'.",
                     },
                 },
-                required: ["tittel", "forklaring", "alvorlighet", "tg", "kostnadsanslag", "kilde"],
+                required: ["tittel", "forklaring", "alvorlighet", "kategori", "tg", "kostnadsanslag", "kilde"],
             },
         },
         sporsmal_til_visning: {

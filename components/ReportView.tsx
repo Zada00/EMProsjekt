@@ -1,6 +1,7 @@
 "use client";
 
-import type { Rapport, Risiko } from "@/lib/schema";
+import { useMemo, useState } from "react";
+import { FREMHEVEDE_KATEGORIER, KATEGORIER, type Rapport, type Risiko } from "@/lib/schema";
 
 /** Referanse til en opplastet PDF (for klikkbare kilder). */
 export type DokRef = { name: string; url: string };
@@ -93,6 +94,9 @@ function RisikoKort({ r, badge, border, dokumenter }: { r: Risiko; badge: string
             <div className="top">
                 <span className={`tg-badge ${badge}`}>{r.alvorlighet[0].toUpperCase() + r.alvorlighet.slice(1)}</span>
                 <span className="del">{r.tittel}</span>
+                {/* Området vises alltid, også når funnene er gruppert etter
+                    alvorlighet – da ser kjøperen med én gang hva det gjelder. */}
+                {r.kategori !== "annet" && <span className="omrade-chip">{storForbokstav(r.kategori)}</span>}
             </div>
             <div className="desc">{r.forklaring}</div>
             {/* Rapportens eget prisanslag, der det finnes. Megler-tilbakemelding:
@@ -132,11 +136,31 @@ const DOKTYPE_NAVN: Record<string, string> = {
     annet: "Annet dokument",
 };
 
+const storForbokstav = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokumenter: DokRef[] }) {
     const teller = (niva: string) => rapport.risikoer.filter((x) => x.alvorlighet === niva).length;
     const hoy = teller("høy");
     const mid = teller("middels");
     const lav = teller("lav");
+    const [gruppering, setGruppering] = useState<"alvorlighet" | "omrade">("alvorlighet");
+
+    // Grupper funnene per område. Bad og kjøkken først – de er erfaringsmessig
+    // de dyreste postene, og megleren ba om at de fremheves. Resten følger
+    // rekkefølgen i KATEGORIER, som speiler oppbygningen av en tilstandsrapport.
+    const omraadeGrupper = useMemo(() => {
+        const rekkefølge = [
+            ...FREMHEVEDE_KATEGORIER,
+            ...KATEGORIER.filter((k) => !FREMHEVEDE_KATEGORIER.includes(k)),
+        ];
+        return rekkefølge
+            .map((kategori) => ({
+                kategori,
+                funn: rapport.risikoer.filter((r) => r.kategori === kategori),
+                fremhevet: FREMHEVEDE_KATEGORIER.includes(kategori),
+            }))
+            .filter((g) => g.funn.length > 0);
+    }, [rapport.risikoer]);
 
     return (
         <div className="report">
@@ -165,25 +189,68 @@ export function ReportView({ rapport, dokumenter }: { rapport: Rapport; dokument
                 <RisikoDonut hoy={hoy} mid={mid} lav={lav} />
             </div>
 
-            <div className="section-title">Ting å være obs på ({rapport.risikoer.length})</div>
+            <div className="section-head">
+                <div className="section-title">Ting å være obs på ({rapport.risikoer.length})</div>
+                {/* To måter å lese de samme funnene på: alvorlighet svarer på
+                    "hva haster?", område svarer på "hva gjelder det?". Megleren
+                    ba om det siste; det første er fortsatt standardvisningen. */}
+                {rapport.risikoer.length > 1 && (
+                    <div className="grupperingsvalg no-print" role="group" aria-label="Gruppering">
+                        <button
+                            className={gruppering === "alvorlighet" ? "aktiv" : ""}
+                            onClick={() => setGruppering("alvorlighet")}
+                        >
+                            Etter alvorlighet
+                        </button>
+                        <button
+                            className={gruppering === "omrade" ? "aktiv" : ""}
+                            onClick={() => setGruppering("omrade")}
+                        >
+                            Etter område
+                        </button>
+                    </div>
+                )}
+            </div>
             {rapport.risikoer.length === 0 && (
                 <div className="notfound">Ingen tydelige risikoer trukket ut.</div>
             )}
-            {NIVAER.map((n) => {
-                const gruppe = rapport.risikoer.filter((r) => r.alvorlighet === n.key);
-                if (gruppe.length === 0) return null;
-                return (
-                    <details key={n.key} className="acc">
-                        <summary>
-                            <span className={`tg-badge ${n.badge}`}>{n.label}</span>
-                            <span className="acc-antall">{gruppe.length} funn</span>
-                        </summary>
-                        {gruppe.map((r, i) => (
-                            <RisikoKort key={i} r={r} badge={n.badge} border={n.border} dokumenter={dokumenter} />
-                        ))}
-                    </details>
-                );
-            })}
+
+            {gruppering === "alvorlighet"
+                ? NIVAER.map((n) => {
+                      const gruppe = rapport.risikoer.filter((r) => r.alvorlighet === n.key);
+                      if (gruppe.length === 0) return null;
+                      return (
+                          <details key={n.key} className="acc">
+                              <summary>
+                                  <span className={`tg-badge ${n.badge}`}>{n.label}</span>
+                                  <span className="acc-antall">{gruppe.length} funn</span>
+                              </summary>
+                              {gruppe.map((r, i) => (
+                                  <RisikoKort key={i} r={r} badge={n.badge} border={n.border} dokumenter={dokumenter} />
+                              ))}
+                          </details>
+                      );
+                  })
+                : omraadeGrupper.map(({ kategori, funn, fremhevet }) => {
+                      // Alvorligste funn i gruppen bestemmer fargen på kanten,
+                      // så et bad med TG3 ikke ser like uskyldig ut som et med TG2.
+                      const verst = NIVAER.find((n) => funn.some((f) => f.alvorlighet === n.key)) ?? NIVAER[2];
+                      return (
+                          <details key={kategori} className={`acc${fremhevet ? " fremhevet" : ""}`}>
+                              <summary>
+                                  <span className={`tg-badge ${verst.badge}`}>{storForbokstav(kategori)}</span>
+                                  <span className="acc-antall">
+                                      {funn.length} funn
+                                      {fremhevet && <em className="fremhev-merke">ofte størst kostnad</em>}
+                                  </span>
+                              </summary>
+                              {funn.map((r, i) => {
+                                  const n = NIVAER.find((x) => x.key === r.alvorlighet) ?? NIVAER[2];
+                                  return <RisikoKort key={i} r={r} badge={n.badge} border={n.border} dokumenter={dokumenter} />;
+                              })}
+                          </details>
+                      );
+                  })}
 
             {rapport.sporsmal_til_visning.length > 0 && (
                 <>

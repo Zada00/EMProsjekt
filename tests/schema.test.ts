@@ -71,6 +71,28 @@ describe("skjema-normalisering", () => {
   });
 });
 
+describe("kategorisering av avvik", () => {
+  const medRisiko = (r: object) =>
+    rapportSchema.parse({
+      dokumenttype: "tilstandsrapport", dokument_advarsel: null, boligtype: null,
+      byggeaar: null, bruksareal_bra_m2: null, sammendrag: "Test.",
+      risikoer: [r], sporsmal_til_visning: [], mulige_kostnader: [], ikke_funnet: [],
+    });
+  const basis = { tittel: "x", forklaring: "y", alvorlighet: "middels", tg: 2, kilde: "s. 6" };
+
+  it("normaliserer store bokstaver i kategori", () => {
+    expect(medRisiko({ ...basis, kategori: "Bad og Våtrom" }).risikoer[0].kategori).toBe("bad og våtrom");
+  });
+
+  it("faller tilbake til 'annet' ved ukjent kategori", () => {
+    expect(medRisiko({ ...basis, kategori: "kjellerstue" }).risikoer[0].kategori).toBe("annet");
+  });
+
+  it("faller tilbake til 'annet' når kategori mangler (eldre svar)", () => {
+    expect(medRisiko(basis).risikoer[0].kategori).toBe("annet");
+  });
+});
+
 describe("sortering av kostnader", () => {
   const kost = (hva: string, grovt_niva: string) => ({
     hva, grovt_niva, vurdering: hva, konsekvens: null, sporsmal: [], kilde: null,

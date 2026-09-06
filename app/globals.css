@@ -714,6 +714,62 @@ a {
     padding: 16px;
 }
 
+/* Overskrift med grupperingsbryter ved siden av. */
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.grupperingsvalg {
+    display: flex;
+    gap: 4px;
+}
+
+.grupperingsvalg button {
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.grupperingsvalg button.aktiv {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--muted);
+}
+
+/* Hvilket område et funn gjelder – rolig, det skal ikke konkurrere
+   med alvorlighetsmerket om oppmerksomheten. */
+.omrade-chip {
+    margin-left: auto;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* Bad og kjøkken: ofte de dyreste postene, derfor synlig markert. */
+.acc.fremhevet > summary {
+    border-left: 3px solid var(--tg2);
+    padding-left: 9px;
+}
+
+.fremhev-merke {
+    margin-left: 8px;
+    font-style: normal;
+    font-size: 12px;
+    color: var(--muted);
+    opacity: 0.85;
+}
+
 /* Rapportens eget prisanslag på et funn – nøytralt, ikke alarmerende.
    Merket gjør det tydelig at tallet kommer fra takstmannen, ikke fra oss. */
 .anslag {
