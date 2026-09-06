@@ -10,7 +10,7 @@ const ENGINE = process.env.ENGINE ?? "anthropic";
 import { SYSTEM_PROMPT, TEKSTMOTOR_REGLER } from "@/lib/prompt";
 import { vurderDekning } from "@/lib/dekningsvakt";
 import { erEnige, velgBeste } from "@/lib/konsensus";
-import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema, type Rapport } from "@/lib/schema";
+import { normaliserAlvorlighet, rapportJsonSchema, rapportSchema, sorterKostnader, type Rapport } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
             }
 
             console.log(`[openrouter] konsensus OK etter ${antallKall} kall`);
-            const normalisert = normaliserAlvorlighet(leveranse);
+            const normalisert = normaliserAlvorlighet(sorterKostnader(leveranse));
             if (normalisert.korrigert > 0) {
                 console.warn(`[openrouter] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG (modell: ${OPENROUTER_MODEL})`);
             }
@@ -197,7 +197,11 @@ export async function POST(request: Request) {
     try {
         const message = await anthropic.messages.create({
             model: MODEL,
-            max_tokens: 8192,
+            // Hevet fra 8192: rapporten har fått kostnadsanslag per funn,
+            // konsekvenser og spørsmål per kostnad – og flere seksjoner er på vei.
+            // Avkuttede svar fanges av stop_reason-sjekken under, men det er en
+            // dårlig brukeropplevelse vi heller vil unngå enn å rapportere.
+            max_tokens: 16000,
             system: SYSTEM_PROMPT,
             tool_choice: { type: "tool", name: "lever_rapport" },
             tools: [
@@ -258,7 +262,7 @@ export async function POST(request: Request) {
             );
         }
 
-        const normalisert = normaliserAlvorlighet(parsed.data);
+        const normalisert = normaliserAlvorlighet(sorterKostnader(parsed.data));
         if (normalisert.korrigert > 0) {
             console.warn(`[boligcopilot] ${normalisert.korrigert} alvorlighet(er) korrigert til å følge TG`);
         }

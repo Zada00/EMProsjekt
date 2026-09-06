@@ -69,6 +69,84 @@ const FASIT = {
    * De står her for at en fremtidig promptendring skal kunne VISE at den
    * fikset dem – eller at den ikke gjorde det.
    */
+  /**
+   * v4-feltene, sjekket mot det Sandvika-rapporten FAKTISK inneholder.
+   * Disse er like viktige som TG3-funnene, fordi de handler om skillet mellom
+   * "undersøkt og i orden" og "ikke undersøkt" – der en feil villeder kjøperen
+   * til å tro at noe er sjekket.
+   */
+  nyeFelter: [
+    {
+      navn: "planløsning = ikke vurdert",
+      // Rapporten sier "Byggetegninger: ikke fremlagt" (s. 9). Da skal status
+      // være "ikke vurdert" – svarer modellen "ingen avvik", forteller den
+      // kjøperen at planløsningen er kontrollert. Det er den ikke.
+      test: (r: Rapport) =>
+        r.planlosning_status === "ikke vurdert"
+          ? null
+          : `planlosning_status="${r.planlosning_status}" (skal være "ikke vurdert" – tegninger er ikke fremlagt)`,
+    },
+    {
+      navn: "egenerklæring = ikke vedlagt",
+      // Boligsalgsrapporten inneholder ingen egenerklæring.
+      test: (r: Rapport) =>
+        r.egenerklaering_status === "ikke vedlagt"
+          ? null
+          : `egenerklaering_status="${r.egenerklaering_status}" (skjemaet er ikke med i denne rapporten)`,
+    },
+    {
+      navn: "eierform = sameie",
+      // Hamangbakken Boligsameie. "borettslag" var en reell feil i tidlige
+      // kjøringer, og er nettopp den typen faktafeil regel I skulle fjerne.
+      test: (r: Rapport) =>
+        r.okonomi.eierform === "sameie" || r.okonomi.eierform === "selveier" || r.okonomi.eierform === "ikke opplyst"
+          ? null
+          : `eierform="${r.okonomi.eierform}" (rapporten gjelder et SAMEIE)`,
+    },
+    {
+      navn: "funnene er kategorisert",
+      // Faller alt til "annet", er kategoriseringen verdiløs.
+      test: (r: Rapport) => {
+        if (r.risikoer.length === 0) return null;
+        const annet = r.risikoer.filter((x) => x.kategori === "annet").length;
+        return annet / r.risikoer.length > 0.4
+          ? `${annet} av ${r.risikoer.length} funn havnet i "annet" – kategoriseringen fungerer dårlig`
+          : null;
+      },
+    },
+    {
+      navn: "TG3-funn har rapportens prisanslag",
+      // Rapporten oppgir sjablong på alle tre TG3-ene (kr 10 000-50 000 for
+      // boden, kr 200-1000 for hver av brannpunktene).
+      test: (r: Rapport) => {
+        const tg3 = r.risikoer.filter((x) => x.tg === 3);
+        if (tg3.length === 0) return null;
+        const uten = tg3.filter((x) => !x.kostnadsanslag);
+        return uten.length
+          ? `${uten.length} av ${tg3.length} TG3-funn mangler kostnadsanslag: ${uten.map((x) => x.tittel).join(", ")}`
+          : null;
+      },
+    },
+    {
+      navn: "kostnader har konsekvens",
+      test: (r: Rapport) => {
+        if (r.mulige_kostnader.length === 0) return null;
+        const uten = r.mulige_kostnader.filter((k) => !k.konsekvens).length;
+        return uten ? `${uten} av ${r.mulige_kostnader.length} kostnadsposter mangler konsekvens` : null;
+      },
+    },
+    {
+      navn: "visningsspørsmål har tema",
+      test: (r: Rapport) => {
+        if (r.sporsmal_til_visning.length === 0) return null;
+        const annet = r.sporsmal_til_visning.filter((q) => q.tema === "annet").length;
+        return annet / r.sporsmal_til_visning.length > 0.5
+          ? `${annet} av ${r.sporsmal_til_visning.length} spørsmål mangler tema`
+          : null;
+      },
+    },
+  ],
+
   blindsoner: [
     {
       navn: "Hull i veggplate skal ha TG2",
@@ -141,12 +219,28 @@ function beloepIkkeIKilden(r: Rapport, kildetekst: string): string[] {
   const treff =
     JSON.stringify(r).match(/(?:kr|NOK)\s*\d[\d\s.,–\-+]*|\d[\d\s.,–\-+]*\d\+?\s*(?:kr|kroner|NOK|,-)/gi) ?? [];
   const ukjente = new Set<string>();
+  const sjekk = (raatall: string) => {
+    const n = raatall.replace(/[\s.]/g, "");
+    if (n.length >= 3 && !new RegExp(`\\b${n}\\b`).test(kilde)) ukjente.add(n);
+  };
+
   for (const t of treff) {
-    for (const num of t.match(/\d[\d\s.]*\d|\d+/g) ?? []) {
-      const n = num.replace(/[\s.]/g, "");
-      if (n.length >= 3 && !new RegExp(`\\b${n}\\b`).test(kilde)) ukjente.add(n);
-    }
+    for (const num of t.match(/\d[\d\s.]*\d|\d+/g) ?? []) sjekk(num);
   }
+
+  // v4: økonomifeltene er RENE TALL i JSON, uten "kr" foran, så mønsteret over
+  // ser dem ikke. Det var et reelt hull – et oppdiktet felleskostnadsbeløp
+  // ville sluppet rett gjennom. Sjekk dem eksplisitt.
+  for (const tall of [
+    r.okonomi.felleskostnader_mnd,
+    r.okonomi.fellesgjeld,
+    r.okonomi.kommunale_avgifter_aar,
+    r.okonomi.eiendomsskatt_aar,
+    r.energi.aarlig_stromforbruk_kwh,
+  ]) {
+    if (tall !== null) sjekk(String(tall));
+  }
+
   return [...ukjente];
 }
 
@@ -188,9 +282,16 @@ function skaar(r: Rapport, kildetekst: string) {
     .map((b) => b.test(r))
     .filter((x): x is string => x !== null);
 
+  // v4-feltene: disse SKAL telle, ikke bare rapporteres. Feil status på
+  // planløsning eller egenerklæring forteller kjøperen at noe er kontrollert
+  // når det ikke er det – det er alvorligere enn et manglende TG2-funn.
+  const nyeFeil = FASIT.nyeFelter
+    .map((f) => f.test(r))
+    .filter((x): x is string => x !== null);
+
   return {
     funn, antTg3: tg3.length, antTg2: tg2.length, antRisiko: r.risikoer.length,
-    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling, mangler, blindsoner,
+    ukjenteBeloep, hallusinertTg3, dokKilde, fordeling, mangler, blindsoner, nyeFeil,
   };
 }
 
@@ -247,7 +348,8 @@ for (const modell of modeller) {
     const s = skaar(rapport, tekst);
     const tg3ok = s.funn.every((f) => f.funnet);
     const sideok = s.funn.every((f) => f.riktigSide);
-    const rene = s.ukjenteBeloep.length === 0 && !s.hallusinertTg3 && !s.dokKilde;
+    const rene =
+      s.ukjenteBeloep.length === 0 && !s.hallusinertTg3 && !s.dokKilde && s.nyeFeil.length === 0;
     const status =
       tg3ok && sideok && s.mangler.length === 0 && rene ? "BESTÅTT"
       : tg3ok ? "DELVIS" : "STRØK";
@@ -264,6 +366,7 @@ for (const modell of modeller) {
         (s.ukjenteBeloep.length ? ` | ⚠ oppdiktede beløp ikke i rapporten: ${s.ukjenteBeloep.join(", ")}` : "") +
         (s.hallusinertTg3 ? " | ⚠ flere TG3 enn fasit (hallusinert TG?)" : "") +
         (s.dokKilde ? " | ⚠ 'Dok N'-kilde ved ett dokument" : "") +
+        (s.nyeFeil.length ? `\n  ⚠ v4-felter: ${s.nyeFeil.join(" | ")}` : "\n  ✓ v4-felter: alle korrekte") +
         (() => {
           // Dekningsvakten slik den kjører i produksjon – ville denne blitt forkastet?
           const d = vurderDekning(rapport, tekst);

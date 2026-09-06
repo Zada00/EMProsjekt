@@ -3,13 +3,18 @@
  * faktisk kostnad per analyse + løpende sum per dag. Gir ekte tall til
  * pitch og prising ("en analyse koster oss X").
  *
- * Priser for claude-sonnet-4-6 (USD per million tokens). Oppdater ved modellbytte.
+ * Priser i USD per million tokens. MÅ oppdateres ved modellbytte – ellers
+ * lyver loggen, og den brukes til prising og pitch.
+ *
+ * ⚠️ IKKE VERIFISERT for claude-sonnet-5: verdiene under er arvet fra
+ * sonnet-4-6. Slå opp gjeldende priser på anthropic.com/pricing og rett dem,
+ * eller overstyr med PRIS_INPUT_USD / PRIS_OUTPUT_USD i .env.local.
  */
 
 import { PROMPT_VERSJON } from "./prompt";
 
-const PRIS_INPUT_USD = 3;
-const PRIS_OUTPUT_USD = 15;
+const PRIS_INPUT_USD = Number(process.env.PRIS_INPUT_USD ?? 3);
+const PRIS_OUTPUT_USD = Number(process.env.PRIS_OUTPUT_USD ?? 15);
 const USD_TIL_NOK = Number(process.env.USD_NOK ?? 10.5);
 
 let dagsSum = { dato: "", nok: 0, antall: 0 };
