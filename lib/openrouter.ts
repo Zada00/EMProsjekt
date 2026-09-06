@@ -53,8 +53,42 @@ export async function analyserMedOpenRouter(
   }
 
   const data = await res.json();
-  const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error(`Tomt svar fra ${modell}.`);
+  const valg = data?.choices?.[0];
+  const content: string | undefined = valg?.message?.content;
+
+  if (!content) {
+    /**
+     * Tomt svar med HTTP 200. Uten detaljer er dette umulig å feilsøke, så vi
+     * graver ut det leverandøren faktisk sier.
+     *
+     * De vanligste årsakene, i erfart rekkefølge:
+     *  – finish_reason "length": modellen brukte hele budsjettet på resonnering
+     *    og rakk aldri å skrive svaret. Typisk for reasoning-modeller på store
+     *    skjemaer. Løses med høyere max_tokens.
+     *  – innholdet ligger i "reasoning" i stedet for "content".
+     *  – leverandøren avviste structured output uten å si fra med en feilkode.
+     */
+    const detaljer = {
+      finish_reason: valg?.finish_reason ?? null,
+      native_finish_reason: valg?.native_finish_reason ?? null,
+      melding_nokler: valg?.message ? Object.keys(valg.message) : [],
+      reasoning_lengde: typeof valg?.message?.reasoning === "string" ? valg.message.reasoning.length : 0,
+      usage: data?.usage ?? null,
+      leverandor: data?.provider ?? "ukjent",
+      feil: data?.error ?? null,
+    };
+    console.error(`[openrouter] tomt svar fra ${modell}:`, JSON.stringify(detaljer, null, 2));
+
+    const hint =
+      detaljer.finish_reason === "length"
+        ? " Modellen brukte hele token-budsjettet uten å levere svar – prøv høyere OPENROUTER_MAX_TOKENS."
+        : detaljer.reasoning_lengde > 0
+          ? ` Modellen produserte ${detaljer.reasoning_lengde} tegn resonnering, men ingen svartekst.`
+          : "";
+    throw new Error(
+      `Tomt svar fra ${modell} (finish_reason: ${detaljer.finish_reason ?? "ukjent"}).${hint}`
+    );
+  }
 
   // Rens (samme lærdom som fra Ollama): gjerder og løstekst utenfor klammene
   let renset = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
@@ -103,6 +137,13 @@ async function kall(
       model: modell,
       temperature: 0,
       seed: 42, // reduserer kjøring-til-kjøring-variasjon der leverandøren støtter det
+      /**
+       * Eksplisitt takhøyde. Uten dette gjelder leverandørens standard, som kan
+       * være langt lavere enn skjemaet vårt trenger – og en reasoning-modell kan
+       * bruke opp hele budsjettet på tenking før den rekker å skrive svaret.
+       * Skjemaet vokste fra 10 til 18 felter i v4; 16000 speiler Claude-grenen.
+       */
+      max_tokens: Number(process.env.OPENROUTER_MAX_TOKENS ?? 16000),
       /**
        * Skru AV context compression. OpenRouter bruker den som standard på
        * endepunkter med ≤8k kontekst, og den fjerner innhold FRA MIDTEN av
