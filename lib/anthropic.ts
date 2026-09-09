@@ -9,9 +9,13 @@ import Anthropic from "@anthropic-ai/sdk";
  *
  * Bytt modell via miljøvariabel ANTHROPIC_MODEL uten å endre kode.
  *
- * MERK ved modellbytte: prisene i lib/kostnad.ts må oppdateres samtidig, ellers
- * lyver kostnadsloggen. Og fasiten må kjøres på nytt – en ny modell er en like
- * stor endring som en ny prompt.
+ * Priser (USD per million tokens, verifisert 09.09.2026):
+ *   sonnet-5: $2 inn / $10 ut  –  opus-5: $5 inn / $25 ut
+ * De ligger i en tabell i lib/kostnad.ts og følger modellvalget automatisk.
+ * Bytter du til en modell som ikke står i tabellen, sier loggen fra.
+ *
+ * MERK: en ny modell er en like stor endring som en ny prompt – fasiten må
+ * kjøres på nytt.
  *
  * GDPR-merk: legg en databehandleravtale (DPA) i bunn før dere kjører ekte
  * persondata gjennom dette. Anthropic tilbyr zero-retention for API – avklar dette
