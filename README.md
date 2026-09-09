@@ -23,9 +23,11 @@ Hent API-nøkkel på https://console.anthropic.com. Standardmodell er `claude-so
 Bytt til `claude-opus-5` via `ANTHROPIC_MODEL` i `.env.local` hvis en rapport er
 vanskelig eller utydelig.
 
-Ved modellbytte: oppdater prisene i `lib/kostnad.ts` (eller sett `PRIS_INPUT_USD` og
-`PRIS_OUTPUT_USD` i `.env.local`), og kjør fasiten på nytt. En ny modell er en like stor
-endring som en ny prompt.
+Prisene ligger i en tabell per modell i `lib/kostnad.ts` og følger modellvalget automatisk
+(sonnet-5: $2/$10 per million tokens, opus-5: $5/$25, verifisert 09.09.2026). Bytter du til
+en modell som ikke står i tabellen, sier loggen fra i stedet for å gjette.
+
+En ny modell er en like stor endring som en ny prompt — kjør fasiten på nytt.
 
 ### Test med ekte data
 Last ned 5–10 tilstandsrapporter fra FINN.no, legg dem i en mappe `testdata/` (allerede

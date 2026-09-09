@@ -3,18 +3,27 @@
  * faktisk kostnad per analyse + løpende sum per dag. Gir ekte tall til
  * pitch og prising ("en analyse koster oss X").
  *
- * Priser i USD per million tokens. MÅ oppdateres ved modellbytte – ellers
- * lyver loggen, og den brukes til prising og pitch.
+ * Prisene ligger i en tabell per modell, ikke som to konstanter. Grunnen er at
+ * konstanter må huskes oppdatert ved hvert modellbytte – og glemmer man det,
+ * lyver loggen uten å si fra. Med en tabell følger prisen modellen automatisk.
  *
- * ⚠️ IKKE VERIFISERT for claude-sonnet-5: verdiene under er arvet fra
- * sonnet-4-6. Slå opp gjeldende priser på anthropic.com/pricing og rett dem,
- * eller overstyr med PRIS_INPUT_USD / PRIS_OUTPUT_USD i .env.local.
+ * USD per million tokens, hentet fra platform.claude.com/docs/en/about-claude/pricing
+ * (verifisert 09.09.2026). Ukjent modell logges med en tydelig advarsel i stedet
+ * for å bruke et gjettet tall.
  */
 
+import { MODEL } from "./anthropic";
 import { PROMPT_VERSJON } from "./prompt";
 
-const PRIS_INPUT_USD = Number(process.env.PRIS_INPUT_USD ?? 3);
-const PRIS_OUTPUT_USD = Number(process.env.PRIS_OUTPUT_USD ?? 15);
+const PRISER: Record<string, { inn: number; ut: number }> = {
+  "claude-sonnet-5": { inn: 2, ut: 10 },
+  "claude-opus-5": { inn: 5, ut: 25 },
+  "claude-haiku-4-5-20251001": { inn: 1, ut: 5 },
+  // Eldre modeller, for sammenligning hvis noen ruller tilbake:
+  "claude-sonnet-4-6": { inn: 3, ut: 15 },
+  "claude-opus-4-8": { inn: 5, ut: 25 },
+};
+
 const USD_TIL_NOK = Number(process.env.USD_NOK ?? 10.5);
 
 let dagsSum = { dato: "", nok: 0, antall: 0 };
@@ -25,8 +34,18 @@ export function loggKostnad(
   usage: { input_tokens: number; output_tokens: number } | undefined
 ) {
   if (!usage) return;
-  const usd =
-    (usage.input_tokens * PRIS_INPUT_USD + usage.output_tokens * PRIS_OUTPUT_USD) / 1_000_000;
+
+  const pris = PRISER[MODEL];
+  if (!pris) {
+    // Heller ingen kroneverdi enn en gal én – tallet brukes til prising.
+    console.warn(
+      `[kostnad] ukjent pris for modell "${MODEL}". Legg den inn i PRISER i lib/kostnad.ts. ` +
+        `in=${usage.input_tokens} ut=${usage.output_tokens}`
+    );
+    return;
+  }
+
+  const usd = (usage.input_tokens * pris.inn + usage.output_tokens * pris.ut) / 1_000_000;
   const nok = usd * USD_TIL_NOK;
 
   const idag = new Date().toISOString().slice(0, 10);
@@ -35,6 +54,8 @@ export function loggKostnad(
   dagsSum.antall += 1;
 
   console.log(
-    `[kostnad] kode=${kode} prompt=${PROMPT_VERSJON} fil="${filnavn}" in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
+    `[kostnad] kode=${kode} modell=${MODEL} prompt=${PROMPT_VERSJON} fil="${filnavn}" ` +
+      `in=${usage.input_tokens} ut=${usage.output_tokens} ≈ ${nok.toFixed(2)} kr | ` +
+      `i dag: ${dagsSum.antall} analyser ≈ ${dagsSum.nok.toFixed(2)} kr`
   );
 }
