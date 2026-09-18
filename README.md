@@ -249,4 +249,4 @@ git push -u origin main
 - **Databehandleravtale (DPA)** med Anthropic + personvernerklæring – kundedokumenter sendes til API-et.
 - `npm audit`: 2 kjente sårbarheter i byggekjeden (postcss via Next) – krever kontrollert
   Next-oppgradering; ikke kjør `audit fix --force`.
-- HTTPS/domene ved deploy (håndteres av plattformen, f.eks. Vercel).
+- HTTPS/domene ved deploy (håndteres av plattformen, f.eks. Vercel eller Railway).
